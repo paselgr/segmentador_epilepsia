@@ -1,16 +1,16 @@
 # U-Net segmentadora de máscaras de resección
 
-Segmentador de máscaras de resección de pacientes con epilepsia. El objetivo de este proyecto es mejorar y desarrollar los segmentadores de máscaras de resección, así como ver los efectos de los algoritmos cuánticos en estos modelos. El modelo está basado en la nnU-Net(https://github.com/mic-dkfz/nnunet) [1] y está desarrollado exclusivamente con Python.
+Segmentador de máscaras de resección de pacientes con epilepsia. El objetivo de este proyecto es mejorar y desarrollar los segmentadores de máscaras de resección, así como ver los efectos de los algoritmos cuánticos en estos modelos. El modelo está basado en la [nnU-Net](https://github.com/mic-dkfz/nnunet) [1] y está desarrollado exclusivamente con Python.
 
 ## Requisitos Previos
 
 El código se ejecuta con [Python], la versión 3.10.19 no causa conflictos en las librerías.
 
-Se necesitará descargar los pesos del modelo de SynthStrip(https://zenodo.org/records/16535634) [2].
+Se necesitará descargar los pesos del modelo de [SynthStrip](https://zenodo.org/records/16535634) [2].
 
 Una vez descargado deberá colocarse en la carpeta principal del proyecto.
 
-También se necesitará descargar los conjuntos de datos de EPISURG(https://rdr.ucl.ac.uk/articles/dataset/EPISURG_a_dataset_of_postoperative_magnetic_resonance_images_MRI_for_quantitative_analysis_of_resection_neurosurgery_for_refractory_epilepsy/9996158?file=26153588) [3] y BraTS-GLI(https://www.synapse.org/Synapse:syn53708249/wiki/627759) [4] siguiendo las instrucciones de las páginas web.
+También se necesitará descargar los conjuntos de datos de [EPISURG](https://rdr.ucl.ac.uk/articles/dataset/EPISURG_a_dataset_of_postoperative_magnetic_resonance_images_MRI_for_quantitative_analysis_of_resection_neurosurgery_for_refractory_epilepsy/9996158?file=26153588) [3] y [BraTS-GLI](https://www.synapse.org/Synapse:syn53708249/wiki/627759) [4] siguiendo las instrucciones de las páginas web.
 Una vez descargados deberán colocarse en la carpeta principal del proyecto.
 
 Las carpetas descargadas deberían tener la siguiente organización interna:
