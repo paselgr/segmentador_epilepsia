@@ -32,6 +32,8 @@ Las carpetas descargadas deberían tener la siguiente organización interna:
 ├── 📄 entrenamiento.py             # Script de entrenamiento principal
 ├── 📄 fine-tuning.py               # Script para fine-tuning
 ├── 📄 requirements.txt             # Dependencias del proyecto
+├── 📄 Resultados_fine-tuning_Clasico.csv               # Resultados obtenidos con el modelo Clásico
+├── 📄 Resultados_fine-tuning_Cuantica.csv              # Resultados obtenidos con la versión Cuántica
 └── 📄 README.md                    # Documentación del proyecto
 ```
 
@@ -71,7 +73,7 @@ pip install -r requirements.txt
 
 ## Uso
 
-Una vez que todas las librerías estén instaladas, de deberán preprocesar los conjuntos de datos mediante
+Una vez que todas las librerías estén instaladas, de deberán preprocesar los dos conjuntos de datos mediante
 
 ```bash
 python preprocesamiento.py --dataset nombre_del_conjunto_de_datos
@@ -88,6 +90,10 @@ y fine-tuning mediante
 ```bash
 python fine-tuning.py --model_type tipo_de_modelo --version numero_version
 ```
+
+## Nota
+
+Se incluyen en la carpeta los archivos [`Resultados_fine-tuning_Clasico.csv`](./Resultados_fine-tuning_Clasico.csv) y [`Resultados_fine-tuning_Cuantica.csv`](./Resultados_fine-tuning_Cuantica.csv) con todos los datos los coeficientes de test del modelo tras entrenarlo y realizar el fine-tuning con los parámetros por defecto en los modelos clásico y la versión cuántica, respectivamente, por si el usuario está interesado en obtener otras métricas no realizadas.
 
 ## Referencias
 
