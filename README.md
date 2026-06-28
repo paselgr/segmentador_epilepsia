@@ -97,8 +97,7 @@ Si utilizas o te basas en la arquitectura de este proyecto, por favor considera 
 Isensee, F., Jaeger, P. F., Kohl, S. A., Petersen, J., & Maier-Hein, K. H. (2021). nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature methods, 18(2), 203-211.
 
 [2] SynthStrip:
-fepegar, “B-spline deformation.ipynb.” GitHub Gist. (https://gist.github.com/
-fepegar/b723d15de620cd2a3a4dbd71e491b59d)
+fepegar, “B-spline deformation.ipynb.” GitHub Gist. (https://gist.github.com/fepegar/b723d15de620cd2a3a4dbd71e491b59d)
 
 [3] EPISURG:
 Pérez-García, F., Rodionov, R., Alim-Marvasti, A., Sparks, R., Duncan, J., & Ourselin, S. (2020). EPISURG: a dataset of postoperative magnetic resonance images (MRI) for quantitative analysis of resection neurosurgery for refractory epilepsy. University College London. DOI, 1(0.5522), 04.
