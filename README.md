@@ -33,7 +33,7 @@ Las carpetas descargadas deberían tener la siguiente organización interna:
 ├── 📄 fine-tuning.py               # Script para fine-tuning
 ├── 📄 requirements.txt             # Dependencias del proyecto
 └── 📄 README.md                    # Documentación del proyecto
-
+```
 
 ## Instalación
 
