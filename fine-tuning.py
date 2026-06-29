@@ -449,9 +449,9 @@ parser.add_argument('-w', '--num_workers', default=20, type=int, required=False,
                     help='Número de workers. Por defecto 20.')
 args = parser.parse_args()
 
-conjuntos = obtener_conjuntos(data_root='datos_preprocesados_EPISURG', n_conjuntos=args.num_folds, semilla=args.seed) ### argparse
+conjuntos = obtener_conjuntos(data_root='datos_preprocesados_EPISURG', n_conjuntos=args.num_folds, semilla=args.seed)
 for i in range(args.num_folds):
-    conjuntos[i] = mezclador_con_semilla(conjuntos[i], args.seed) ### argparse
+    conjuntos[i] = mezclador_con_semilla(conjuntos[i], args.seed)
 
 lista_versiones = []
 test_files = []
@@ -501,8 +501,7 @@ for i in range(args.num_folds):
 
     csv_logger = CSVLogger(save_dir='')
 
-    max_epochs = 1000 ### argparse
-    filename_base = f"best_model-{model._get_name()}-n_epochs={max_epochs:02d}-"
+    filename_base = f"best_model-{model._get_name()}-n_epochs={args.max_epochs:02d}-"
 
     data_module = VideoDataModule(
         info_list=info_list,
@@ -665,7 +664,7 @@ df.to_csv(ruta_resultados, index=False, encoding='utf-8')
 
 # Guardamos los coeficientes de Dice individuales
 os.makedirs(os.path.join('resultados_enteros', f'version_{versiones}'), exist_ok=True)
-ruta_resultados_enteros = os.path.join('resultados_enteros', f'version_{versiones}', f'fine-tuning_{args.model_type}_{versiones}.csv') ### argparse
+ruta_resultados_enteros = os.path.join('resultados_enteros', f'version_{versiones}', f'fine-tuning_{args.model_type}_{versiones}.csv')
 os.makedirs(os.path.dirname(ruta_resultados_enteros), exist_ok=True)
 
 rutas_test = []
