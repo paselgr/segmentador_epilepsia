@@ -1,12 +1,19 @@
-import torch
-import os
-from monai.inferers import SlidingWindowInferer
-from modelos import NNUNet3D_Clasico, SegmentationModule_Clasico, NNUNet3D_Cuantica, SegmentationModule_Cuantica
-import ants
-import numpy as np
-from preprocesamiento import extraer_cerebro_ants
-import tempfile
 import argparse
+import os
+import tempfile
+
+import ants
+from monai.inferers import SlidingWindowInferer
+import numpy as np
+import torch
+
+from modelos import (
+    NNUNet3D_Clasico,
+    NNUNet3D_Cuantica,
+    SegmentationModule_Clasico,
+    SegmentationModule_Cuantica,
+)
+from preprocesamiento import extraer_cerebro_ants
 
 
 def procesar_escaner(escaner):
