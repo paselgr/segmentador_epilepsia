@@ -27,10 +27,13 @@ Las carpetas descargadas deberían tener la siguiente organización interna:
 │   ├── 📄 README.md
 │   ├── 📄 README.txt
 │   └── 📄 subjects.csv             # Información sobre los datos de EPISURG
+├── 📁 datos_entrada_inferencia/    # Carpeta entrada de datos para la inferencia 
+├── 📁 datos_salida_inferencia/     # Carpeta salida de datos de la inferencia
 ├── 📄 synthstrip.1.pt              # Pesos de SynthStrip [Descargados]
 ├── 📄 preprocesamiento.py          # Script de preparación de datos
 ├── 📄 entrenamiento.py             # Script de entrenamiento principal
 ├── 📄 fine-tuning.py               # Script para fine-tuning
+├── 📄 inferencia.py                # Script para la inferencia
 ├── 📄 requirements.txt             # Dependencias del proyecto
 ├── 📄 Resultados_fine-tuning_Clasico.csv               # Resultados obtenidos con el modelo Clásico
 ├── 📄 Resultados_fine-tuning_Cuantica.csv              # Resultados obtenidos con la versión Cuántica
@@ -89,6 +92,12 @@ y fine-tuning mediante
 
 ```bash
 python fine-tuning.py --model_type tipo_de_modelo --version numero_version
+```
+
+La inferencia se realiza sobre todos los archivos de la carpeta `datos_entrada_inferencia` con
+
+```bash
+python inferencia.py --model_type tipo_de_modelo --version numero_version --brain_strip bool_extracción_cerebro
 ```
 
 ## Nota
