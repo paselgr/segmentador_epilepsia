@@ -107,8 +107,6 @@ Se incluyen en la carpeta los archivos [`Resultados_fine-tuning_Clasico.csv`](./
 ## Referencias
 
 [1] nnU-Net:
-Si utilizas o te basas en la arquitectura de este proyecto, por favor considera citar el trabajo original de nnU-Net:
-
 Isensee, F., Jaeger, P. F., Kohl, S. A., Petersen, J., & Maier-Hein, K. H. (2021). nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature methods, 18(2), 203-211.
 
 [2] SynthStrip:
