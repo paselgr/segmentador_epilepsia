@@ -16,12 +16,12 @@ from lightning.pytorch.loggers import CSVLogger
 from torch.utils.data import DataLoader, Dataset
 
 from modelos import (
-    NNUNet3D_Clasico,
-    NNUNet3D_Cuantica,
-    PlotCallback_Clasico,
-    PlotCallback_Cuantica,
-    SegmentationModule_Clasico,
-    SegmentationModule_Cuantica,
+    NNUNet3D_Classic,
+    NNUNet3D_Hybrid,
+    PlotCallback_Classic,
+    PlotCallback_Hybrid,
+    SegmentationModule_Classic,
+    SegmentationModule_Hybrid,
 )
 
 
@@ -470,13 +470,13 @@ for i in range(args.num_folds):
     test_files.append(test_paths)
 
     if args.model_type == 'Classic':
-        model = NNUNet3D_Clasico(input_channels=1, num_classes=1)
-        pl_model = SegmentationModule_Clasico(model, learning_rate=1e-3, max_epochs=args.max_epochs)
-        plot_callback = PlotCallback_Clasico()
+        model = NNUNet3D_Classic(input_channels=1, num_classes=1)
+        pl_model = SegmentationModule_Classic(model, learning_rate=1e-3, max_epochs=args.max_epochs)
+        plot_callback = PlotCallback_Classic()
     if args.model_type == 'Hybrid':
-        model = NNUNet3D_Cuantica(input_channels=1, num_classes=1, number_quantum_layers=5)
-        pl_model = SegmentationModule_Cuantica(model, learning_rate=1e-3, max_epochs=args.max_epochs)
-        plot_callback = PlotCallback_Cuantica()
+        model = NNUNet3D_Hybrid(input_channels=1, num_classes=1, number_quantum_layers=5)
+        pl_model = SegmentationModule_Hybrid(model, learning_rate=1e-3, max_epochs=args.max_epochs)
+        plot_callback = PlotCallback_Hybrid()
 
     # Load the model and move it to GPU
     version = args.version

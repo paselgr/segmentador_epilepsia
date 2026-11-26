@@ -8,10 +8,10 @@ import numpy as np
 import torch
 
 from modelos import (
-    NNUNet3D_Clasico,
-    NNUNet3D_Cuantica,
-    SegmentationModule_Clasico,
-    SegmentationModule_Cuantica,
+    NNUNet3D_Classic,
+    NNUNet3D_Hybrid,
+    SegmentationModule_Classic,
+    SegmentationModule_Hybrid,
 )
 from preprocesamiento import extraer_cerebro_ants
 
@@ -84,11 +84,11 @@ parser.add_argument('-s', '--brain_strip', default=True, type=bool, required=Fal
 args = parser.parse_args()
 
 if args.model_type == 'Classic':
-    model = NNUNet3D_Clasico(input_channels=1, num_classes=1)
-    pl_model = SegmentationModule_Clasico(model, learning_rate=1e-3, max_epochs=1000)
+    model = NNUNet3D_Classic(input_channels=1, num_classes=1)
+    pl_model = SegmentationModule_Classic(model, learning_rate=1e-3, max_epochs=1000)
 if args.model_type == 'Hybrid':
-    model = NNUNet3D_Cuantica(input_channels=1, num_classes=1, number_quantum_layers=5)
-    pl_model = SegmentationModule_Cuantica(model, learning_rate=1e-3, max_epochs=1000)
+    model = NNUNet3D_Hybrid(input_channels=1, num_classes=1, number_quantum_layers=5)
+    pl_model = SegmentationModule_Hybrid(model, learning_rate=1e-3, max_epochs=1000)
 
 version = args.version
 brain_strip = args.brain_strip

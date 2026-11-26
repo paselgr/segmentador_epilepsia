@@ -94,7 +94,7 @@ class StackedConvLayers(nn.Module):
         return x
 
 
-class NNUNet3D_Clasico(pl.LightningModule):
+class NNUNet3D_Classic(pl.LightningModule):
     """Classical model based on nnU-Net"""
     def __init__(self, input_channels=1, num_classes=1, learning_rate=1e-2, negative_slope=0.02):
         super().__init__()
@@ -218,7 +218,7 @@ class NNUNet3D_Clasico(pl.LightningModule):
         return self.seg_head(x)
 
 
-class SegmentationModule_Clasico(pl.LightningModule):
+class SegmentationModule_Classic(pl.LightningModule):
     """
     Specify what happens before and after
     training, validation, and test
@@ -384,7 +384,7 @@ class SegmentationModule_Clasico(pl.LightningModule):
         }
 
 
-class PlotCallback_Clasico(pl.Callback):
+class PlotCallback_Classic(pl.Callback):
     """
     Produce a cumulative plot of the Dice coefficient
     and Loss at the end of each epoch.
@@ -541,7 +541,7 @@ class QuantumBridge(nn.Module):
         return (1 - clamped_gamma) * identity + clamped_gamma * out
 
 
-class NNUNet3D_Cuantica(pl.LightningModule):
+class NNUNet3D_Hybrid(pl.LightningModule):
     """Hybrid model based on nnU-Net"""
     def __init__(self, input_channels=1, num_classes=1, learning_rate=1e-2, negative_slope=0.02, number_quantum_layers=3):
         super().__init__()
@@ -673,7 +673,7 @@ class NNUNet3D_Cuantica(pl.LightningModule):
         return self.seg_head(x)
 
 
-class SegmentationModule_Cuantica(pl.LightningModule):
+class SegmentationModule_Hybrid(pl.LightningModule):
     """
     Specify what happens before and after
     training, validation, and test
@@ -864,7 +864,7 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         }
 
 
-class PlotCallback_Cuantica(pl.Callback):
+class PlotCallback_Hybrid(pl.Callback):
     """
         Produce a cumulative plot of the Dice coefficient,
         Loss, and quantum gamma at the end of each epoch.
