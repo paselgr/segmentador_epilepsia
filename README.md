@@ -1,110 +1,111 @@
-# U-Net segmentadora de máscaras de resección
+# Resection Mask Segmentation U-Net
 
-Segmentador de máscaras de resección de pacientes con epilepsia. El objetivo de este proyecto es mejorar y desarrollar los segmentadores de máscaras de resección, así como ver los efectos de los algoritmos cuánticos en estos modelos. El modelo está basado en la [nnU-Net](https://github.com/mic-dkfz/nnunet) [1] y está desarrollado exclusivamente con Python.
+Resection mask segmenter for patients with epilepsy. The aim of this project is to improve and develop resection mask segmenters, as well as to observe the effects of quantum algorithms on these models. The model is based on [nnU-Net](https://github.com/mic-dkfz/nnunet) [1] and is developed exclusively in Python.
 
-## Requisitos Previos
+## Prerequisites
 
-El código se ejecuta con [Python], la versión 3.10.19 no causa conflictos en las librerías.
+The code runs with [Python]. Version 3.10.19 does not cause library conflicts.
 
-Se necesitará descargar los pesos del modelo de [SynthStrip](https://zenodo.org/records/16535634) [2].
+You will need to download the model weights from [SynthStrip](https://zenodo.org/records/16535634) [2].
 
-Una vez descargado deberá colocarse en la carpeta principal del proyecto.
+Once downloaded, the file must be placed in the root folder of the project.
 
-También se necesitará descargar los conjuntos de datos de [EPISURG](https://rdr.ucl.ac.uk/articles/dataset/EPISURG_a_dataset_of_postoperative_magnetic_resonance_images_MRI_for_quantitative_analysis_of_resection_neurosurgery_for_refractory_epilepsy/9996158?file=26153588) [3] y [BraTS-GLI](https://www.synapse.org/Synapse:syn53708249/wiki/627759) [4] siguiendo las instrucciones de las páginas web.
-Una vez descargados deberán colocarse en la carpeta principal del proyecto.
+You will also need to download the [EPISURG](https://rdr.ucl.ac.uk/articles/dataset/EPISURG_a_dataset_of_postoperative_magnetic_resonance_images_MRI_for_quantitative_analysis_of_resection_neurosurgery_for_refractory_epilepsy/9996158?file=26153588) [3] and [BraTS-GLI](https://www.synapse.org/Synapse:syn53708249/wiki/627759) [4] datasets following the instructions on their websites.
+Once downloaded, they must be placed in the root folder of the project.
 
-Las carpetas descargadas deberían tener la siguiente organización interna:
+The downloaded folders should have the following internal organization:
 
 ```text
 📁 segmentador_epilepsia/
-├── 📁 BraTS-GLI/                                       # Carpeta de BraTS
+├── 📁 BraTS-GLI/                                        # BraTS folder
 │   ├── 📄 ...
-│   ├── 📁 BraTS2024-BraTS-GLI-AdditionalTrainingData/  # Carpeta con datos para el entrenamiento
-│   ├── 📁 BraTS2024-BraTS-GLI-TrainingData/            # Carpeta con datos para el entrenamiento
+│   ├── 📁 BraTS2024-BraTS-GLI-AdditionalTrainingData/   # Folder with the training data
+│   ├── 📁 BraTS2024-BraTS-GLI-TrainingData/             # Folder with the training data
 │   └── 📁 ...
-├── 📁 EPISURG/
-│   ├── 📁 subjects/                # Carpeta con datos para el fine-tuning
+├── 📁 EPISURG/                                          # EPISURG folder
+│   ├── 📁 subjects/                                     # Folder with the fine-tuning data
 │   ├── 📄 README.md
 │   ├── 📄 README.txt
-│   └── 📄 subjects.csv             # Información sobre los datos de EPISURG
-├── 📁 datos_entrada_inferencia/    # Carpeta entrada de datos para la inferencia 
-├── 📁 datos_salida_inferencia/     # Carpeta salida de datos de la inferencia
-├── 📄 synthstrip.1.pt              # Pesos de SynthStrip [Descargados]
-├── 📄 preprocesamiento.py          # Script de preparación de datos
-├── 📄 entrenamiento.py             # Script de entrenamiento principal
-├── 📄 fine-tuning.py               # Script para fine-tuning
-├── 📄 inferencia.py                # Script para la inferencia
-├── 📄 requirements.txt             # Dependencias del proyecto
-├── 📄 Resultados_fine-tuning_Clasico.csv               # Resultados obtenidos con el modelo Clásico
-├── 📄 Resultados_fine-tuning_Cuantica.csv              # Resultados obtenidos con la versión Cuántica
-└── 📄 README.md                    # Documentación del proyecto
+│   └── 📄 subjects.csv         # Informarion about the EPISURG data
+├── 📁 input_data_inference/    # Input folder for the inference 
+├── 📁 output_data_inference/   # Output folder for the inference 
+├── 📄 LICENSE                  # The repository license
+├── 📄 README.md                # Project documentation
+├── 📄 Results_fine-tuning_Classic.csv      # Classic model results
+├── 📄 Results_fine-tuning_Hybrid.csv       # Hybrid model results
+├── 📄 fine-tuning.py           # Fine-tuning script
+├── 📄 inference.py             # Inference script
+├── 📄 models.py                # Script with the models
+├── 📄 preprocessing.py         # Preprocessing script
+├── 📄 requirements.txt         # Project dependencies
+└── 📄 training.py              # Training script
 ```
 
-## Instalación
+## Installation
 
-Sigue estos pasos paso a paso para configurar el entorno de desarrollo en tu máquina:
+Follow these step-by-step instructions to set up the development environment on your machine:
 
-1. **Clona el repositorio** en tu máquina local:
+1. **Clone the repository** to your local machine:
    ```bash
    git clone [https://github.com/paselgr/segmentador_epilepsia.git](https://github.com/paselgr/segmentador_epilepsia.git)
    ```
 
-2. **Navega** al directorio del proyecto:
+2. **Navigate** to the project directory:
    ```bash
-   cd nombre-del-repo
+   cd segmentador_epilepsia
    ```
 
-3. **Instala las dependencias** y paquetes necesarios:
+3. **Install the dependencies** and required packages:
 
-Deberás instalar PyTorch. Si tienes una GPU de NVIDIA compatible, instala la versión acelerada por hardware (CUDA 12.1):
+You will need to install PyTorch. If you have a compatible NVIDIA GPU, install the hardware-accelerated version (CUDA 12.1):
 
 ```bash
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cu121
 ```
 
-Si no dispones de una tarjeta gráfica NVIDIA, instala la versión básica. Es más ligera pero los entrenamientos serán notablemente más lentos:
+If you do not have an NVIDIA graphics card, install the basic version. It is lighter, though training will be noticeably slower:
 
 ```bash
 pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu
 ```
 
-Una vez instalado PyTorch, instala el resto de librarías mediante
+Once PyTorch is installed, install the remaining libraries using
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## Uso
+## Usage
 
-Una vez que todas las librerías estén instaladas, de deberán preprocesar los dos conjuntos de datos mediante
-
-```bash
-python preprocesamiento.py --dataset nombre_del_conjunto_de_datos
-```
-
-Cuando los datos estén preprocesados puedes entrenar el modelo mediante
+Once all libraries are installed, both datasets must be preprocessed using
 
 ```bash
-python entrenamiento.py --model_type tipo_de_modelo
+python preprocessing.py --dataset dataset_name
 ```
 
-y fine-tuning mediante
+When the data is preprocessed, you can train the model using
 
 ```bash
-python fine-tuning.py --model_type tipo_de_modelo --version numero_version
+python training.py --model_type model_type_name
 ```
 
-La inferencia se realiza sobre todos los archivos de la carpeta `datos_entrada_inferencia` con
+and fine-tune it using
 
 ```bash
-python inferencia.py --model_type tipo_de_modelo --version numero_version --brain_strip bool_extracción_cerebro
+python fine-tuning.py --model_type model_type_name --version version_number
 ```
 
-## Nota
+Inference is run on all files in the `input_data_inference` folder with
 
-Se incluyen en la carpeta los archivos [`Resultados_fine-tuning_Clasico.csv`](./Resultados_fine-tuning_Clasico.csv) y [`Resultados_fine-tuning_Cuantica.csv`](./Resultados_fine-tuning_Cuantica.csv) con todos los datos los coeficientes de test del modelo tras entrenarlo y realizar el fine-tuning con los parámetros por defecto en los modelos clásico y la versión cuántica, respectivamente, por si el usuario está interesado en obtener otras métricas no realizadas.
+```bash
+python inference.py --model_type model_type_name --version version_number --brain_strip bool_brain_strip
+```
 
-## Referencias
+## Note
+
+The files [`Results_fine-tuning_Classic.csv`](./Results_fine-tuning_Classic.csv) and [`Results_fine-tuning_Hybrid.csv`](./Results_fine-tuning_Hybrid.csv) are included in the folder with all test coefficient data from the model after training and fine-tuning with default parameters in the classical model and quantum version, respectively, in case the user is interested in computing other metrics not included here.
+
+## References
 
 [1] nnU-Net:
 Isensee, F., Jaeger, P. F., Kohl, S. A., Petersen, J., & Maier-Hein, K. H. (2021). nnU-Net: a self-configuring method for deep learning-based biomedical image segmentation. Nature methods, 18(2), 203-211.
