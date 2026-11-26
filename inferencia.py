@@ -146,8 +146,8 @@ sliding_window = SlidingWindowInferer(
     mode="gaussian"
 )
 
-carpeta_entrada = 'datos_entrada_inferencia'
-carpeta_salida  = 'datos_salida_inferencia'
+carpeta_entrada = 'input_data_inference'
+carpeta_salida  = 'output_data_inference'
 for escaner in os.listdir(carpeta_entrada):
     escaner_ruta = os.path.join(carpeta_entrada, escaner)
     escaner_ants = extraer_cerebro_ants(escaner_ruta) if brain_strip else ants.image_read(escaner_ruta)
