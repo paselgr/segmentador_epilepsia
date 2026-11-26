@@ -26,19 +26,19 @@ from modelos import (
 
 class RandomCrop(tio.Transform):
     """
-    Función que parchea los escáneres
+    Function that patches the scans.
 
-    Argumentos:
-        patch_size (Tuple[int, int, int]): Tamaño del parche que se quiere extraer.
-        p_foreground (optional, float): Probabilidad de forzar la extracción de un
-            parche que contenga perc_values de los vóxeles de resección.
-        perc_values (optional, float): Fracción mínima de vóxeles de la máscara de
-            resección que deben de haber en el parche para que se acepte. Se activa
-            el p_foreground de los casos.
-        n_iter (optional, int): Número máximo de iteraciones en que se ejecutará la
-            obtención de un parche que contenga perc_values de los vóxeles de resección
-            al activarse p_foreground. En caso de que ninguna sobrepase los perc_values
-            vóxeles, se seleccionará la que más tenga.
+    Args:
+        patch_size (Tuple[int, int, int]): Size of the patch to extract.
+        p_foreground (optional, float): Probability of forcing the extraction of a
+            patch containing perc_values of the resection voxels.
+        perc_values (optional, float): Minimum fraction of voxels from the resection
+            mask that must be present in the patch for it to be accepted. Triggered in
+            p_foreground of cases.
+        n_iter (optional, int): Maximum number of iterations to run while trying to
+            obtain a patch containing perc_values of resection voxels when p_foreground
+            is triggered. If none exceed perc_values voxels, the one with the highest
+            count is selected.
     """
     def __init__(self, patch_size, p_foreground=0.33, perc_values=0.9, n_iter=5):
         super().__init__()
@@ -48,14 +48,14 @@ class RandomCrop(tio.Transform):
         self.n_iter = n_iter
 
     def apply_transform(self, subject):
-        total_pixel_value = torch.sum(subject.mascara.data.float())#.detach()
-        if torch.rand(1) < self.p_foreground:#.detach() < self.p_foreground:
+        total_pixel_value = torch.sum(subject.mascara.data.float())
+        if torch.rand(1) < self.p_foreground:
             first_flag = True
             for _ in range(self.n_iter):
                 sampler = tio.data.UniformSampler(self.patch_size)
                 patch_generator = sampler(subject)
                 interm_subject_patch = next(patch_generator)
-                mask_pixel_value = torch.sum(interm_subject_patch.mascara.data.float())#.detach()
+                mask_pixel_value = torch.sum(interm_subject_patch.mascara.data.float())
                 if mask_pixel_value >= total_pixel_value * self.perc_values:
                     subject_patch = interm_subject_patch
                     break
@@ -74,48 +74,48 @@ class RandomCrop(tio.Transform):
 
 class MyScanDataset(Dataset):
     """
-    Dataset que implementa "lazy loading".
-    En lugar de rutas, usa objetos Nifti1Image ya cargados.
+    Dataset implementing "lazy loading".
+    Instead of paths, uses already-loaded Nifti1Image objects.
     """
     def __init__(self, list_of_paths, transformations=None):
         self.paths = list_of_paths
         self.transformations = transformations
 
     def __len__(self):
-        # Devuelve el número total de escáneres referenciados
+        # Return the total number of referenced scans
         return len(self.paths)
 
     def __getitem__(self, idx):
-        # Obtener el objeto Nifti1Image (no la ruta) y la etiqueta
+        # Get the Nifti1Image object (not the path) and the label
         image_path = self.paths[idx]
 
         try:
-            # Extraer datos y metadatos de Nibabel
+            # Extract data and metadata from Nibabel
             escaner_nib = nib.load(image_path[0])
             mascara_nib = nib.load(image_path[1])
 
-            # .get_fdata() da un array numpy (D, H, W)
+            # .get_fdata() returns a numpy array (D, H, W)
             escaner_array = escaner_nib.get_fdata(dtype="float32")
             mascara_array = mascara_nib.get_fdata(dtype="float32")
-            # La máscara del cerebro me servirá al final para que no hayan variaciones de intensidad en el fondo del escáner
-            mascara_cerebro_array = escaner_array != 0 # Obtengo las posiciones que no son el fondo del escáner
+            # The brain mask will be used at the end so there are no intensity variations in the scan background
+            mascara_cerebro_array = escaner_array != 0 # Get positions that are not the scan background
             
-            # Convertir a Tensor y añadir un canal (C=1)
-            # TorchIO espera (C, D, H, W)
+            # Convert to Tensor and add a channel (C=1)
+            # TorchIO expects (C, D, H, W)
             escaner_tensor = torch.from_numpy(escaner_array).unsqueeze(0)
             mascara_tensor = torch.from_numpy(mascara_array).unsqueeze(0)
             mascara_cerebro_tensor = torch.from_numpy(mascara_cerebro_array).unsqueeze(0)
             
-            # Obtener la matriz afín
+            # Get the affine matrix
             escaner_affine_matrix = escaner_nib.affine
             mascara_affine_matrix = mascara_nib.affine
             
-            # Creamos el objeto 'ScalarImage' de TorchIO
+            # Create the TorchIO 'ScalarImage' object
             escaner_image = tio.ScalarImage(tensor=escaner_tensor, affine=escaner_affine_matrix)
             mascara_image = tio.LabelMap(tensor=mascara_tensor, affine=mascara_affine_matrix)
             mascara_cerebro_image = tio.LabelMap(tensor=mascara_cerebro_tensor, affine=escaner_affine_matrix)
             
-            # Juntamos en el objeto Subject (para aplicar todas las transformaciones juntas)
+            # Combine into a Subject object (to apply all transformations together)
             subject = tio.Subject(
                 escaner=escaner_image,
                 mascara=mascara_image,
@@ -123,12 +123,12 @@ class MyScanDataset(Dataset):
             )
             
         except Exception as e:
-            print(f"ERROR: No se pudo procesar la imagen en el índice {idx}.")
-            print(f"Detalle: {e}")
-            # Si esto falla, el problema es más profundo (ej. datos corruptos)
-            return None # Devolvemos None para forzar el error
+            print(f"ERROR: Could not process the image at index {idx}.")
+            print(f"Details: {e}")
+            # If this fails, the issue is deeper (e.g., corrupted data)
+            return None # Return None to force the error
 
-        # Aplicar Data Augmentation
+        # Apply Data Augmentation
         if self.transformations:
             subject = self.transformations(subject)
 
@@ -145,16 +145,16 @@ class MyScanDataset(Dataset):
 class VideoDataModule(pl.LightningDataModule):
     def __init__(self, data_root, batch_size=4, num_workers=8):
         """
-        Define las transformaciones y parámetros principales.
+        Defines the main transformations and parameters.
         """
         super().__init__()
-        self.data_root = data_root # Ruta principal
+        self.data_root = data_root # Root directory
         self.batch_size = batch_size
         self.num_workers = num_workers
 
         self.patch_size = (112, 131, 98)
 
-        # Transformaciones de entrenamiento
+        # Training transformations
         self.train_transformations = tio.Compose([
             RandomCrop(patch_size=self.patch_size, p_foreground=0.33, perc_values=0.9, n_iter=5),
             tio.RandomAffine(scales=0, degrees=30, p=0.2),
@@ -168,12 +168,12 @@ class VideoDataModule(pl.LightningDataModule):
             tio.RandomAnisotropy(downsampling=(1.5, 2.0), image_interpolation='bspline', p=0.25, include=['escaner'])
         ])
 
-        # Transformaciones de validación
+        # Validation transformations
         self.eval_transformations = tio.Compose([
             RandomCrop(patch_size=self.patch_size, p_foreground=0.33, perc_values=0.9, n_iter=5)
         ])
         
-        # Listas para guardar las referencias
+        # Lists to store references
         self.train_paths = []
         self.train_labels = []
         self.val_paths = []
@@ -187,10 +187,10 @@ class VideoDataModule(pl.LightningDataModule):
                     paths.append(sorted_file_paths)
         return paths
 
-    def setup(self, stage=None): # Se ejecuta una única vez al ejecutar la función
+    def setup(self, stage=None): # Runs only once when the function is called
         """
-        Busca las referencias (paths) y crea los Datasets.
-        Esto se ejecuta una vez en cada 'fit' o 'test'.
+        Finds references (paths) and creates the Datasets.
+        This runs once per 'fit' or 'test'.
         """
         if stage == 'fit' or stage is None:
             info_list = []
@@ -203,10 +203,10 @@ class VideoDataModule(pl.LightningDataModule):
                 folder_path = os.path.join(self.data_root, folder)
                 files = os.listdir(folder_path)
                 if len(files) < 2:
-                    print(f'En la ruta {folder_path} faltan archivos:\n{files=}')
+                    print(f'In the path {folder_path} there are missing files:\n{files=}')
                 else:
                     file_paths = [os.path.join(folder_path, file) for file in files]
-                    # Ordenamos los archivos: 1.Escáner, 2.Máscara
+                    # Sort files: 1.Scan, 2.Mask
                     sorted_file_paths = sorted(file_paths, key=lambda x: x.endswith('-t1n.nii.gz'), reverse=True)
                     info_list.append(sorted_file_paths)
 
@@ -224,7 +224,7 @@ class VideoDataModule(pl.LightningDataModule):
             val_paths   = self.get_paths_from_folder_numbers(val_folder_numbers,   info_list)
             test_paths  = self.get_paths_from_folder_numbers(test_folder_numbers,  info_list)
 
-            # Instanciar los datasets con las rutas y transformaciones
+            # Instantiate datasets with paths and transformations
             self.train_dataset = MyScanDataset(
                 list_of_paths=train_paths,
                 transformations=self.train_transformations,
@@ -242,63 +242,63 @@ class VideoDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         """
-        Crea el DataLoader de entrenamiento.
+        Creates the training DataLoader.
         """
         return DataLoader(
             self.train_dataset, 
             batch_size=self.batch_size, 
-            shuffle=True,                 # Mezcla los datos en cada época
-            num_workers=self.num_workers, # Carga datos en paralelo
-            pin_memory=True               # Acelera transferencia a GPU
+            shuffle=True,                 # Shuffles data every epoch
+            num_workers=self.num_workers, # Loads data in parallel
+            pin_memory=True               # Speeds up transfer to GPU
         )
 
     def val_dataloader(self):
         """
-        Crea el DataLoader de validación.
+        Creates the validation DataLoader.
         """
         return DataLoader(
             self.val_dataset, 
             batch_size=self.batch_size, 
-            shuffle=False, # No se mezcla en validación
+            shuffle=False,                # Do not shuffle during validation
             num_workers=self.num_workers,
             pin_memory=True
         )
     
     def test_dataloader(self):
         """
-        Crea el DataLoader de test.
+        Create the test DataLoader.
         """
         return DataLoader(
             self.test_dataset,
-            batch_size=1, # batch_size = 1 porque calculamos el test real de imágenes con distintos tamaños (si agrupamos da error)
+            batch_size=1, # batch_size = 1 because we evaluate the real test on images of different sizes (batching causes an error)
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True
         )
 
 def main():
-    parser = argparse.ArgumentParser(description='Entrenamiento con el dataset BraTS.')
-    parser.add_argument('--model_type', type=str, choices=['Clasico', 'Cuantica'], required=True,
-                        help='Especifica qué tipo de modelo se entrena (Clasico o Cuantica)')
+    parser = argparse.ArgumentParser(description='Training with the BraTS dataset.')
+    parser.add_argument('--model_type', type=str, choices=['Classic', 'Hybrid'], required=True,
+                        help='Specify which model type to train (Classic or Hybrid)')
     parser.add_argument('-e', '--max_epochs', default=1000, type=int, required=False,
-                        help='Número de épocas del entrenamiento. Por defecto 1000.')
+                        help='Number of training epochs. Default is 1000.')
     parser.add_argument('-b', '--batch_size', default=8, type=int, required=False,
-                        help='Número de elementos por lote. Por defecto 8.')
+                        help='Number of items per batch. Default is 8.')
     parser.add_argument('-w', '--num_workers', default=20, type=int, required=False,
-                        help='Número de workers. Por defecto 20.')
+                        help='Number of workers. Default is 20.')
     args = parser.parse_args()
 
-    if args.model_type == 'Clasico':
+    if args.model_type == 'Classic':
         model = NNUNet3D_Clasico(input_channels=1, num_classes=1)
         pl_model = SegmentationModule_Clasico(model, learning_rate=1e-2, max_epochs=args.max_epochs)
         plot_callback = PlotCallback_Clasico()
-    if args.model_type == 'Cuantica':
+    if args.model_type == 'Hybrid':
         model = NNUNet3D_Cuantica(input_channels=1, num_classes=1, number_quantum_layers=5)
         pl_model = SegmentationModule_Cuantica(model, learning_rate=1e-2, max_epochs=args.max_epochs)
         plot_callback = PlotCallback_Cuantica()
 
 
-    # Mover el modelo a GPU
+    # Move model to GPU
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
@@ -308,7 +308,7 @@ def main():
 
     filename_base = f"best_model-{model._get_name()}-n_epochs={args.max_epochs:02d}-"
 
-    # Instanciar el DataModule
+    # Instantiate the DataModule
     data_module = VideoDataModule(
         data_root='datos_preprocesados_BraTS',
         batch_size=args.batch_size,
@@ -316,12 +316,12 @@ def main():
     )
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        monitor="val_dice", # Métrica a monitorizar
+        monitor="val_dice", # Metric to monitor
         mode="max",
         filename=filename_base+"{epoch:02d}-{val_dice:.2f}"
     )
 
-    # Entrenar
+    # Train
     trainer = pl.Trainer(
         max_epochs=args.max_epochs,
         accelerator="auto",
@@ -330,25 +330,25 @@ def main():
                 plot_callback],
         logger=csv_logger,
         
-        # Optimizaciones
-        precision="16-mixed", # Reduce memoria a la mitad (aprox)
-        accumulate_grad_batches=2, # Simula Batch Size: 2 * batch_size. Por defecto 2 * 8 = 16
+        # Optimizations
+        precision="16-mixed", # Halves memory usage (approx.)
+        accumulate_grad_batches=2, # Simulates Batch Size: 2 * batch_size. Default 2 * 8 = 16
 
         benchmark=True
     )
     trainer.fit(pl_model, data_module)
 
 
-    # Ejecutar las pruebas
-    print("--- Entrenamiento finalizado ---)")
-    print("--- Ejecutando pruebas con el MEJOR checkpoint... ---")
+    # Run tests
+    print("--- Training finished ---)")
+    print("--- Running tests with the BEST checkpoint... ---")
 
     results = trainer.test(model=pl_model, datamodule=data_module, ckpt_path="best", weights_only=False)
 
-    print("Resultados de la prueba:")
+    print("Test results:")
     print(results)
 
-    # Guardamos los resultados
+    # Save results
     metrics = pd.read_csv(os.path.join(trainer.logger.log_dir, 'metrics.csv'))
 
     test_dice_avg  = [test_dice_avg for test_dice_avg in metrics['test_dice_avg'] if not np.isnan(test_dice_avg)][0]
@@ -359,12 +359,12 @@ def main():
 
     version = trainer.logger.version
 
-    # Guardamos los datos del entrenamiento
+    # Save training data
     os.makedirs(os.path.join('resultados', f'version_{version}'), exist_ok=True)
     ruta_resultados = os.path.join('resultados', f'version_{version}', 'resultados.csv')
     os.makedirs(os.path.dirname(ruta_resultados), exist_ok=True)
 
-    # Creamos el csv
+    # Create the CSV
     datos_dict = {
         'Model_Type': [args.model_type],
         'Execution': ['Training'],
