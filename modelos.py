@@ -14,43 +14,43 @@ from torch.optim.lr_scheduler import PolynomialLR
 
 class DiceLoss(nn.Module):
     """
-    Cálculo del coeficiente de Dice evaluado sobre cada dato
-    de forma individual y devolviendo la media de todos ellos
+    Calculation of the Dice coefficient evaluated on each sample
+    individually and returning the mean across all of them
     """
     def __init__(self, smooth=1e-5):
         super(DiceLoss, self).__init__()
         self.smooth = smooth
 
     def forward(self, inputs, targets):
-        # inputs: Salida del modelo (logits) -> [Batch, 1, D, H, W]
-        # targets: Máscara real (0 o 1)      -> [Batch, 1, D, H, W]
+        # inputs: Model output (logits)       -> [Batch, 1, D, H, W]
+        # targets: Ground truth mask (0 or 1) -> [Batch, 1, D, H, W]
         
-        # 1. Aplicar Sigmoide para tener probabilidades entre 0 y 1
+        # 1. Apply Sigmoid to get probabilities between 0 and 1
         inputs = torch.sigmoid(inputs).float()
         targets = (targets > 0).float()
         
-        # 2. Aplanar tensores para calcular la intersección fácilmente
-        assert inputs.shape == targets.shape, 'Las dimensiones de los inputs y los targets no coinciden'
+        # 2. Flatten tensors to compute the intersection easily
+        assert inputs.shape == targets.shape, 'Input and target dimensions do not match'
         inputs  = torch.flatten(inputs, start_dim=1)
         targets = torch.flatten(targets, start_dim=1)
         
-        # 3. Calcular Dice
+        # 3. Compute Dice
         intersection = (inputs * targets).sum(dim=1)
         dice_tensor = (2. * intersection + self.smooth) / (inputs.sum(dim=1) + targets.sum(dim=1) + self.smooth)
         dice = torch.mean(dice_tensor)
         
-        # 4. Retornar Loss (1 - Dice)
+        # 4. Return Loss (1 - Dice)
         return 1 - dice
 
 
 class ConvBlock(nn.Module):
     """
-    Bloque básico de convolución
+    Basic convolution block
     Conv3d -> InstanceNorm3d -> LeakyReLU
     """
     def __init__(self, in_channels, out_channels, kernel_size, negative_slope, stride=1):
         super().__init__()
-        # Padding calculado para mantener dimensiones con kernel 3 (p=1)
+        # Padding calculated to preserve dimensions with kernel 3 (p=1)
         padding = 1 if kernel_size == 3 else 0
         
         self.conv = nn.Conv3d(
@@ -59,7 +59,7 @@ class ConvBlock(nn.Module):
             stride=stride, 
             padding=padding, 
             bias=True,
-            #padding_mode='replicate' # Pico en la memoria utilizada
+            #padding_mode='replicate' # Peak in memory usage
         )
         self.norm = nn.InstanceNorm3d(
             out_channels, 
@@ -74,17 +74,17 @@ class ConvBlock(nn.Module):
 
 class StackedConvLayers(nn.Module):
     """
-    Agrupa convoluciones.
-    La primera convolución maneja el stride (downsampling)
+    Groups convolutions.
+    The first convolution handles the stride (downsampling)
     """
     def __init__(self, in_channels, out_channels, kernel_size, negative_slope, stride, num_convs):
         super().__init__()
         self.blocks = nn.ModuleList()
         
-        # Primera convolución aplica el stride y cambia los canales
+        # First convolution applies the stride and changes the channels
         self.blocks.append(ConvBlock(in_channels, out_channels, kernel_size, negative_slope, stride))
         
-        # Convoluciones subsiguientes mantienen las dimensiones
+        # Subsequent convolutions preserve the dimensions
         for _ in range(num_convs - 1):
             self.blocks.append(ConvBlock(out_channels, out_channels, kernel_size, negative_slope, stride=1))
 
@@ -95,7 +95,7 @@ class StackedConvLayers(nn.Module):
 
 
 class NNUNet3D_Clasico(pl.LightningModule):
-    """Modelo Clásico basado en nnU-Net"""
+    """Classical model based on nnU-Net"""
     def __init__(self, input_channels=1, num_classes=1, learning_rate=1e-2, negative_slope=0.02):
         super().__init__()
         self.save_hyperparameters()
@@ -125,17 +125,17 @@ class NNUNet3D_Clasico(pl.LightningModule):
             current_in_channels = out_feats
 
         # --- Decoder ---
-        # El decoder va desde el fondo hacia arriba (invirtiendo listas)
+        # The decoder goes from bottom to top (reversing lists)
         self.decoder_blocks = nn.ModuleList()
         self.transp_convs = nn.ModuleList()
         
-        # Filtros del decoder (excluyendo el bottleneck más profundo): [320, 256, 128, 64, 32]
+        # Decoder filters (excluding the deepest bottleneck): [320, 256, 128, 64, 32]
         decoder_filters = filters[:-1][::-1]
-        # Strides del decoder (corresponden a los strides del encoder que queremos revertir)
-        # Omitimos el primer stride [1,1,1] del encoder porque no hay upsampling final de resolución
+        # Decoder strides (corresponding to encoder strides to revert)
+        # Skip the first encoder stride [1,1,1] since there is no final resolution upsampling
         decoder_strides = strides[1:][::-1]
         
-        # Input actual viene del bottleneck (último del encoder) = 320
+        # Current input comes from the bottleneck (last encoder block) = 320
         current_in_channels = filters[-1]
 
         for (stride, out_feats, num_convs) in zip(decoder_strides, decoder_filters, n_conv_decoder):
@@ -144,7 +144,7 @@ class NNUNet3D_Clasico(pl.LightningModule):
             kernel_size_transp = tuple(kernel_map[dim]  for dim in stride)
             padding_transp     = tuple(padding_map[dim] for dim in stride)
 
-            # Convolución traspuesta para el upsampling
+            # Transposed convolution for upsampling
             self.transp_convs.append(
                 nn.ConvTranspose3d(
                     current_in_channels,
@@ -156,11 +156,11 @@ class NNUNet3D_Clasico(pl.LightningModule):
                 )
             )
             
-            # Bloque de convoluciones después de la concatenación
-            # La entrada será: out_feats (del upsample) + out_feats (del skip connection)
+            # Convolution block after concatenation
+            # Input will be: out_feats (from upsample) + out_feats (from skip connection)
             self.decoder_blocks.append(
                 StackedConvLayers(
-                    out_feats * 2, # Concatenación
+                    out_feats * 2, # Concatenation
                     out_feats, 
                     kernel_size,
                     negative_slope,
@@ -170,13 +170,13 @@ class NNUNet3D_Clasico(pl.LightningModule):
             )
             current_in_channels = out_feats
 
-        # --- Cabezal de Segmentación (1x1x1 Conv) ---
+        # --- Segmentation Head (1x1x1 Conv) ---
         self.seg_head = nn.Conv3d(filters[0], num_classes, kernel_size=1, bias=False)
 
         self._initialize_weights(negative_slope=negative_slope)
 
     def _initialize_weights(self, negative_slope):
-        """Inicilización de Kaiming"""
+        """Kaiming initialization"""
         for m in self.modules():
             if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d)):
                 nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu', a=negative_slope)
@@ -195,7 +195,7 @@ class NNUNet3D_Clasico(pl.LightningModule):
             x = block(x)
             skips.append(x)
         
-        # El último elemento de skips es el bottleneck, no se usa como skip connection para sí mismo
+        # The last item in skips is the bottleneck; it is not used as a skip connection for itself
         x = skips.pop()
         
         # Decoder Path
@@ -205,14 +205,14 @@ class NNUNet3D_Clasico(pl.LightningModule):
             # Upsample
             x = transp(x)
             
-            # Manejo de discrepancias menores en tamaños por padding/strides impares
+            # Handle minor size mismatches due to padding/odd strides
             if x.shape[2:] != skip.shape[2:]:
                 x = interpolate(x, size=skip.shape[2:], mode='nearest')
             
-            # Concatenar
+            # Concatenate
             x = torch.cat([x, skip], dim=1)
             
-            # Convoluciones
+            # Convolutions
             x = block(x)
             
         return self.seg_head(x)
@@ -220,8 +220,8 @@ class NNUNet3D_Clasico(pl.LightningModule):
 
 class SegmentationModule_Clasico(pl.LightningModule):
     """
-    Especificamos que sucede antes y después del
-    entrenamiento, validación y test
+    Specify what happens before and after
+    training, validation, and test
     """
     def __init__(self, pytorch_model, max_epochs, learning_rate=1e-2):
         super().__init__()
@@ -229,19 +229,19 @@ class SegmentationModule_Clasico(pl.LightningModule):
         self.max_epochs = max_epochs
         self.learning_rate = learning_rate
         
-        # Definimos la pérdida y las métricas
+        # Define loss and metrics
         self.criterion = DiceLoss(smooth=1e-5)
 
         self.test_step_outputs = []
 
     def forward(self, x):
-        # El paso de inferencia
+        # Inference step
         return self.model(x)
 
     def _calculate_dice_score(self, logits, targets):
-        """Función auxiliar para métrica (no para gradientes)"""
+        """Helper function for metric (not for gradients)"""
         probs = torch.sigmoid(logits)
-        preds = (probs > 0.5).float() # Binarizar predicción
+        preds = (probs > 0.5).float() # Binarize prediction
 
         preds   = torch.flatten(preds, start_dim=1)
         targets = torch.flatten(targets, start_dim=1)
@@ -249,7 +249,7 @@ class SegmentationModule_Clasico(pl.LightningModule):
         intersection = (preds * targets).sum(dim=1)
         union = preds.sum(dim=1) + targets.sum(dim=1)
 
-        # Coeficiente de Dice
+        # Dice coefficient
         dice_tensor = (2. * intersection + 1e-5) / (union + 1e-5)
         dice = torch.mean(dice_tensor)
         return dice
@@ -261,15 +261,15 @@ class SegmentationModule_Clasico(pl.LightningModule):
         # Forward pass
         outputs = self(inputs) 
         
-        # Calcular pérdida y métricas
+        # Compute loss and metrics
         loss = self.criterion(outputs, masks)
         dice_score = self._calculate_dice_score(outputs, masks)
         
-        # Registro (log)
+        # Log metrics
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
         self.log("train_dice", dice_score, on_step=False, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
 
-        # Devolver la pérdida
+        # Return loss
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -281,17 +281,17 @@ class SegmentationModule_Clasico(pl.LightningModule):
         loss = self.criterion(outputs, masks)
         dice_score = self._calculate_dice_score(outputs, masks)
         
-        # Registramos las métricas de validación
+        # Log validation metrics
         self.log("val_loss", loss, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
         self.log("val_dice", dice_score, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
         return loss
     
     def _calculate_individual_dice_scores(self, outputs, targets):
-        """Calcula el Dice Score por cada elemento individual en el batch"""
+        """Computes the Dice Score for each individual item in the batch"""
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).float()
 
-        # Aplanamos las dimensiones espaciales: [B, C, D, H, W] -> [B, -1]
+        # Flatten spatial dimensions: [B, C, D, H, W] -> [B, -1]
         preds = preds.view(preds.shape[0], -1)
         targets = targets.view(targets.shape[0], -1)
 
@@ -307,8 +307,7 @@ class SegmentationModule_Clasico(pl.LightningModule):
         
         outputs = self(inputs)
 
-        # Aplicamos SlidingWindowInferer para calcular
-        # el coeficiente de Dice en escáneres enteros
+        # Apply SlidingWindowInferer to compute the Dice coefficient on whole scans
         patch_size = (112, 131, 98)
         sw_batch_size = 4
         overlap = 0.9
@@ -319,45 +318,45 @@ class SegmentationModule_Clasico(pl.LightningModule):
         loss = self.criterion(outputs, masks)
         individual_dices = self._calculate_individual_dice_scores(outputs_sliding_window, masks)
         
-        # Guardamos en la lista (convertimos a CPU/numpy para evitar consumo de GPU)
+        # Store in list (move to CPU/numpy to avoid GPU memory usage)
         self.test_step_outputs.append(individual_dices.detach().cpu())
 
         self.log("test_loss", loss, prog_bar=True)
         return loss
 
     def on_test_epoch_end(self):
-        # Concatenamos todos los resultados recolectados
+        # Concatenate all collected results
         all_dices = torch.cat(self.test_step_outputs)
         version = self.logger.version
         ruta_carpeta = os.path.join('resultados_enteros', f'version_{version}')
         os.makedirs(ruta_carpeta, exist_ok=True)
         nombre_archivo = os.path.join(ruta_carpeta, 'resultados_enteros.txt')
-        # Guardamos todos los valores de los Coeficientes de Dice
+        # Save all Dice coefficient values
         with open(nombre_archivo, "w") as f:
             f.write(f"Resultados de test - Version {version}\n")
             for test_dice in all_dices:
                 f.write(f"{test_dice}\n")
 
-        # Calculamos media, desviación estándar,
-        # mediana y rango intercuartílico global
+        # Compute global mean, standard deviation,
+        # median, and interquartile range
         avg_dice = torch.mean(all_dices)
         std_dice = torch.std(all_dices)
         med_dice = torch.median(all_dices)
         iqr_dice = torch.quantile(all_dices, 0.75) - torch.quantile(all_dices, 0.25)
 
-        print(f"\n--- Resultados Finales de Test ---")
-        print(f"Dice Promedio: {avg_dice:.4f}")
-        print(f"Desviación Estándar Dice: {std_dice:.4f}")
-        print(f"Mediana Dice: {med_dice:.4f}")
-        print(f"Rango Intercuartílico Dice: {iqr_dice:.4f}")
+        print(f"\n--- Final Test Results ---")
+        print(f"Mean Dice: {avg_dice:.4f}")
+        print(f"Standard Deviation Dice: {std_dice:.4f}")
+        print(f"Median Dice: {med_dice:.4f}")
+        print(f"Interquartile Range Dice: {iqr_dice:.4f}")
 
-        # Registramos las métricas finales
+        # Log final metrics
         self.log("test_dice_avg", avg_dice)
         self.log("test_dice_std", std_dice)
         self.log("test_dice_med", med_dice)
         self.log("test_dice_iqr", iqr_dice)
 
-        # Limpiamos la lista para futuros tests o validaciones
+        # Clear the list for future tests or validations
         self.test_step_outputs.clear()
 
     def configure_optimizers(self):
@@ -369,8 +368,8 @@ class SegmentationModule_Clasico(pl.LightningModule):
             nesterov=True
         )
 
-        # Definir la función del scheduler
-        # La fórmula es (1 - epoch / max_epochs) ** 0.9
+        # Define the scheduler function
+        # Formula is (1 - epoch / max_epochs) ** 0.9
         scheduler = PolynomialLR(
             optimizer,
             total_iters=self.max_epochs,
@@ -380,17 +379,17 @@ class SegmentationModule_Clasico(pl.LightningModule):
             "optimizer": optimizer,
             "lr_scheduler": {
                 "scheduler": scheduler,
-                "interval": "epoch", # Se actualiza en cada época
+                "interval": "epoch", # Updated every epoch
             },
         }
 
 
 class PlotCallback_Clasico(pl.Callback):
     """
-    Realizamos una gráfica acumulativa del coefieciente de Dice
-    y la Pérdida (Loss) al final de cada época.
-    Las gráficas de una misma versión se sobrescriben
-    de forma que solo se mantiene la más reciente.
+    Produce a cumulative plot of the Dice coefficient
+    and Loss at the end of each epoch.
+    Plots for the same version are overwritten
+    so only the latest one is kept.
     """
     def __init__(self):
         super().__init__()
@@ -405,12 +404,12 @@ class PlotCallback_Clasico(pl.Callback):
         self.save_dir = None
 
     def on_train_start(self, trainer, pl_module):
-        # Accedemos a la ruta del logger (ej. lightning_logs/version_0)
+        # Access the logger path (ej. lightning_logs/version_0)
         if trainer.logger:
             version_dir = trainer.logger.version
             if isinstance(version_dir, int):
                 version_dir = f"version_{version_dir}"
-            # Construimos la ruta dinámica
+            # Build the dynamic path
             self.save_dir = os.path.join(self.base_save_dir, version_dir)
         else:
             self.save_dir = self.base_save_dir
@@ -419,7 +418,7 @@ class PlotCallback_Clasico(pl.Callback):
             os.makedirs(self.save_dir)
 
     def on_train_epoch_end(self, trainer, pl_module):
-        # Recuperar métricas del trainer
+        # Retrieve metrics from the trainer
         metrics = trainer.callback_metrics
         
         t_loss = metrics.get('train_loss')
@@ -427,7 +426,7 @@ class PlotCallback_Clasico(pl.Callback):
         t_dice = metrics.get('train_dice')
         v_dice = metrics.get('val_dice')
 
-        # Solo añadir si el valor existe en esta época
+        # Append only if the value exists in this epoch
         if t_loss is not None:
             self.history['train_loss'].append(t_loss.item())
         if v_loss is not None:
@@ -437,7 +436,7 @@ class PlotCallback_Clasico(pl.Callback):
         if v_dice is not None:
             self.history['val_dice'].append(v_dice.item())
 
-        # Generar la gráfica acumulativa
+        # Generate the cumulative plot
         self._generate_loss_plot(trainer.current_epoch)
         self._generate_dice_plot(trainer.current_epoch)
 
@@ -450,7 +449,7 @@ class PlotCallback_Clasico(pl.Callback):
             plt.plot(epochs_range, self.history['train_loss'], label='Train Loss')
         
         if self.history['val_loss']:
-            # Ajustar el rango si val_loss tiene menos datos (ej. si no validas cada época)
+            # Adjust range if val_loss has fewer entries (e.g., if not validating every epoch)
             val_range = range(len(self.history['val_loss']))
             plt.plot(val_range, self.history['val_loss'], label='Val Loss')
 
@@ -460,7 +459,7 @@ class PlotCallback_Clasico(pl.Callback):
         plt.legend()
         plt.grid(True, alpha=0.7)
 
-        # Guardar la imagen
+        # Save the image
         plt.savefig(os.path.join(self.save_dir, f"loss_grafica.png"))
         plt.close()
 
@@ -473,7 +472,7 @@ class PlotCallback_Clasico(pl.Callback):
             plt.plot(epochs_range, self.history['train_dice'], label='Train Dice')
         
         if self.history['val_dice']:
-            # Ajustar el rango si val_loss tiene menos datos (ej. si no validas cada época)
+            # Adjust range if val_loss has fewer entries (e.g., if not validating every epoch)
             val_range = range(len(self.history['val_dice']))
             plt.plot(val_range, self.history['val_dice'], label='Val Dice')
 
@@ -483,43 +482,43 @@ class PlotCallback_Clasico(pl.Callback):
         plt.legend(loc='lower right')
         plt.grid(True, alpha=0.7)
 
-        # Guardar la imagen
+        # Save the image
         plt.savefig(os.path.join(self.save_dir, f"dice_grafica.png"))
         plt.close()
 
 
 class QuantumBridge(nn.Module):
     """
-    Puente cuántico que utilizaremos en el
-    cuello de botella (bottleneck) del modelo cuántico
+    Quantum bridge used in the bottleneck
+    of the hybrid model.
     """
     def __init__(self, channels, num_qubits=8, num_layers=3):
         super().__init__()
         self.n_qubits = num_qubits
         self.num_layers = num_layers
         
-        # Crear dispositivo dinámico según los qubits que reciba
+        # Create dynamic device based on the number of qubits received
         dev = qml.device("default.qubit", wires=self.n_qubits)
 
-        # Aplicar angle embedding a los datos y entrelazarlos
-        # según StronglyEntanglingLayers
+        # Apply angle embedding to the data and entangle
+        # the qubits using StronglyEntanglingLayers
         @qml.qnode(dev, interface="torch")
         def quantum_circuit(inputs, weights):
             qml.AngleEmbedding(inputs, wires=range(self.n_qubits))
             qml.StronglyEntanglingLayers(weights, wires=range(self.n_qubits))
             return [qml.expval(qml.PauliZ(i)) for i in range(self.n_qubits)]
 
-        # Reducción de canales (de 320 a n_qubits)
+        # Channel reduction (from 320 to n_qubits)
         self.reduce = nn.Conv3d(channels, self.n_qubits, kernel_size=1)
         
-        # Capa Cuántica de PennyLane
+        # PennyLane Quantum Layer
         weight_shapes = {"weights": (self.num_layers, self.n_qubits, 3)} 
         self.q_layer = qml.qnn.TorchLayer(quantum_circuit, weight_shapes)
         
-        # Expansión (de n_qubits a 320)
+        # Expansion (from n_qubits to 320)
         self.expand = nn.Conv3d(self.n_qubits, channels, kernel_size=1)
         
-        # Parámetro de escala aprendible para la influencia cuántica (Gamma cuántica)
+        # Learnable scaling parameter for quantum influence (Quantum Gamma)
         self.gamma = nn.Parameter(torch.tensor([0.5])) 
 
     def forward(self, x):
@@ -528,8 +527,7 @@ class QuantumBridge(nn.Module):
         q_in = self.reduce(x) 
         b, c, d, h, w = q_in.shape
         
-        # Modificación del orden de las dimensiones
-        # para aplicar la función de PennyLane
+        # Reorder dimensions to apply the PennyLane function
         q_in = q_in.permute(0, 2, 3, 4, 1).reshape(-1, self.n_qubits)
         q_in = torch.tanh(q_in) * pnp.pi 
         
@@ -538,13 +536,13 @@ class QuantumBridge(nn.Module):
         q_out = q_out.reshape(b, d, h, w, self.n_qubits).permute(0, 4, 1, 2, 3)
         out = self.expand(q_out)
         
-        # Combinación lineal convexa de la parte clásica y cuántica
+        # Convex linear combination of the classical and quantum parts
         clamped_gamma = torch.clamp(self.gamma, min=0.0, max=1.0)
         return (1 - clamped_gamma) * identity + clamped_gamma * out
 
 
 class NNUNet3D_Cuantica(pl.LightningModule):
-    """Modelo Cuántico basado en nnU-Net"""
+    """Hybrid model based on nnU-Net"""
     def __init__(self, input_channels=1, num_classes=1, learning_rate=1e-2, negative_slope=0.02, number_quantum_layers=3):
         super().__init__()
         self.save_hyperparameters()
@@ -575,17 +573,17 @@ class NNUNet3D_Cuantica(pl.LightningModule):
             current_in_channels = out_feats
 
         # --- Decoder ---
-        # El decoder va desde el fondo hacia arriba (invirtiendo listas)
+        # The decoder goes from bottom to top (reversing lists)
         self.decoder_blocks = nn.ModuleList()
         self.transp_convs = nn.ModuleList()
         
-        # Filtros del decoder (excluyendo el bottleneck más profundo): [320, 256, 128, 64, 32]
+        # Decoder filters (excluding the deepest bottleneck): [320, 256, 128, 64, 32]
         decoder_filters = filters[:-1][::-1]
-        # Strides del decoder (corresponden a los strides del encoder que queremos revertir)
-        # Omitimos el primer stride [1,1,1] del encoder porque no hay upsampling final de resolución
+        # Decoder strides (corresponding to encoder strides to revert)
+        # Skip the first encoder stride [1,1,1] since there is no final resolution upsampling
         decoder_strides = strides[1:][::-1]
         
-        # Input actual viene del bottleneck (último del encoder) = 320
+        # Current input comes from the bottleneck (last encoder block) = 320
         current_in_channels = filters[-1]
 
         for (stride, out_feats, num_convs) in zip(decoder_strides, decoder_filters, n_conv_decoder):
@@ -594,7 +592,7 @@ class NNUNet3D_Cuantica(pl.LightningModule):
             kernel_size_transp = tuple(kernel_map[dim]  for dim in stride)
             padding_transp     = tuple(padding_map[dim] for dim in stride)
 
-            # Convolución traspuesta para el upsampling
+            # Transposed convolution for upsampling
             self.transp_convs.append(
                 nn.ConvTranspose3d(
                     current_in_channels,
@@ -606,11 +604,11 @@ class NNUNet3D_Cuantica(pl.LightningModule):
                 )
             )
             
-            # Bloque de convoluciones después de la concatenación
-            # La entrada será: out_feats (del upsample) + out_feats (del skip connection)
+            # Convolution block after concatenation
+            # Input will be: out_feats (from upsample) + out_feats (from skip connection)
             self.decoder_blocks.append(
                 StackedConvLayers(
-                    out_feats * 2, # Concatenación
+                    out_feats * 2, # Concatenation
                     out_feats, 
                     kernel_size,
                     negative_slope,
@@ -620,17 +618,17 @@ class NNUNet3D_Cuantica(pl.LightningModule):
             )
             current_in_channels = out_feats
 
-        # Puente Cuántico en el Bottleneck
-        # El número de filtros en el bridge es filters[-1], es decir, 320.
+        # Quantum Bridge in the Bottleneck
+        # The number of filters in the bridge is filters[-1], i.e., 320.
         self.quantum_bridge = QuantumBridge(filters[-1], num_qubits=8, num_layers=self.number_quantum_layers)
 
-        # --- Cabezal de Segmentación (1x1x1 Conv) ---
+        # --- Segmentation Head (1x1x1 Conv) ---
         self.seg_head = nn.Conv3d(filters[0], num_classes, kernel_size=1, bias=False)
 
         self._initialize_weights(negative_slope=negative_slope)
 
     def _initialize_weights(self, negative_slope):
-        """Inicilización de Kaiming"""
+        """Kaiming initialization"""
         for m in self.modules():
             if isinstance(m, (nn.Conv3d, nn.ConvTranspose3d)):
                 nn.init.kaiming_normal_(m.weight, nonlinearity='leaky_relu', a=negative_slope)
@@ -649,10 +647,10 @@ class NNUNet3D_Cuantica(pl.LightningModule):
             x = block(x)
             skips.append(x)
         
-        # El último elemento de skips es el bottleneck, no se usa como skip connection para sí mismo
+        # The last item in skips is the bottleneck; it is not used as a skip connection for itself
         x = skips.pop()
 
-        # Aplicamos el peunte cuántico aquí, donde las dimensiones son mínimas
+        # Apply the quantum bridge here, where dimensions are smallest
         x = self.quantum_bridge(x)
         
         # Decoder Path
@@ -662,14 +660,14 @@ class NNUNet3D_Cuantica(pl.LightningModule):
             # Upsample
             x = transp(x)
             
-            # Manejo de discrepancias menores en tamaños por padding/strides impares
+            # Handle minor size mismatches due to padding/odd strides
             if x.shape[2:] != skip.shape[2:]:
                 x = interpolate(x, size=skip.shape[2:], mode='nearest')
             
-            # Concatenar
+            # Concatenate
             x = torch.cat([x, skip], dim=1)
             
-            # Convoluciones
+            # Convolutions
             x = block(x)
             
         return self.seg_head(x)
@@ -677,8 +675,8 @@ class NNUNet3D_Cuantica(pl.LightningModule):
 
 class SegmentationModule_Cuantica(pl.LightningModule):
     """
-    Especificamos que sucede antes y después del
-    entrenamiento, validación y test
+    Specify what happens before and after
+    training, validation, and test
     """
     def __init__(self, pytorch_model, max_epochs, learning_rate=1e-3):
         super().__init__()
@@ -686,19 +684,19 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         self.max_epochs = max_epochs
         self.learning_rate = learning_rate
         
-        # Definimos la pérdida y las métricas
+        # Define the loss and metrics
         self.criterion = DiceLoss(smooth=1e-5)
 
         self.test_step_outputs = []
 
     def forward(self, x):
-        # El paso de inferencia
+        # The inference step
         return self.model(x)
 
     def _calculate_dice_score(self, logits, targets, smooth=1e-5):
         """Función auxiliar para métrica (no para gradiente)"""
         probs = torch.sigmoid(logits)
-        preds = (probs > 0.5).float() # Binarizar predicción
+        preds = (probs > 0.5).float() # Binarize prediction
 
         preds   = torch.flatten(preds, start_dim=1)
         targets = torch.flatten(targets, start_dim=1)
@@ -706,7 +704,7 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         intersection = (preds * targets).sum(dim=1)
         union = preds.sum(dim=1) + targets.sum(dim=1)
 
-        # Coeficiente de Dice
+        # Dice coefficient
         dice_tensor = (2. * intersection + smooth) / (union + smooth)
         dice = torch.mean(dice_tensor)
         return dice
@@ -718,20 +716,20 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         # Forward pass
         outputs = self(inputs) 
         
-        # Calcular pérdida y métricas
+        # Calculate loss and metrics
         loss = self.criterion(outputs, masks)
         dice_score = self._calculate_dice_score(outputs, masks)
         
-        # Registro (log)
+        # Log metrics
         self.log("train_loss", loss, on_step=False, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
         self.log("train_dice", dice_score, on_step=False, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
 
-        # Registramos el valor absoluto de la gamma cuántica
-        # (proporción de la capa cuántica utilizada) para ver su importancia
+        # Log the absolute value of quantum gamma
+        # (proportion of the quantum layer used) to see its importance
         q_clamped_weight = torch.clamp(self.model.quantum_bridge.gamma, min=0.0, max=1.0).item() 
         self.log("gamma_weight", q_clamped_weight, on_step=False, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
 
-        # Devolver la pérdida
+        # Return loss
         return loss
 
     def validation_step(self, batch, batch_idx):
@@ -743,7 +741,7 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         loss = self.criterion(outputs, masks)
         dice_score = self._calculate_dice_score(outputs, masks)
         
-        # Registramos las métricas de validación
+        # Log validation metrics
         self.log("val_loss", loss, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
         self.log("val_dice", dice_score, on_epoch=True, prog_bar=True, batch_size=inputs.size(0))
         return loss
@@ -753,7 +751,7 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         probs = torch.sigmoid(outputs)
         preds = (probs > 0.5).float()
 
-        # Aplanamos dimensiones espaciales: [B, C, D, H, W] -> [B, -1]
+        # Flatten spatial dimensions: [B, C, D, H, W] -> [B, -1]
         preds = preds.view(preds.shape[0], -1)
         targets = targets.view(targets.shape[0], -1)
 
@@ -769,8 +767,8 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         
         outputs = self(inputs)
 
-        # Aplicamos SlidingWindowInferer para calcular
-        # el coeficiente de Dice en escáneres enteros
+        # Apply SlidingWindowInferer to calculate
+        # the Dice coefficient on full scans
         patch_size = (112, 131, 98)
         sw_batch_size = 4
         overlap = 0.9
@@ -782,58 +780,58 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         loss = self.criterion(outputs, masks)
         individual_dices = self._calculate_individual_dice_scores(outputs_sliding_window, masks)
         
-        # Guardamos en la lista (convertimos a CPU/numpy para evitar consumo de GPU)
+        # Save to the list (convert to CPU/numpy to avoid GPU memory usage)
         self.test_step_outputs.append(individual_dices.detach().cpu())
 
         self.log("test_loss", loss, prog_bar=True)
         return loss
 
     def on_test_epoch_end(self):
-        # Concatenamos todos los resultados recolectados
+        # Concatenate all collected results
         all_dices = torch.cat(self.test_step_outputs)
         version = self.logger.version
         ruta_carpeta = os.path.join('resultados_enteros', f'version_{version}')
         os.makedirs(ruta_carpeta, exist_ok=True)
         nombre_archivo = os.path.join(ruta_carpeta, 'resultados_enteros.txt')
-        with open(nombre_archivo, "w") as f: # Guardamos todos los valores de los Coeficientes de Dice
+        with open(nombre_archivo, "w") as f: # Save all Dice coefficient values
             f.write(f"Resultados de test - Version {version}\n")
             for test_dice in all_dices:
                 f.write(f"{test_dice}\n")
 
-        # Calculamos media, desviación estándar,
-        # mediana y rango intercuartílico global
+        # Compute global mean, standard deviation,
+        # median, and interquartile range
         avg_dice = torch.mean(all_dices)
         std_dice = torch.std(all_dices)
         med_dice = torch.median(all_dices)
         iqr_dice = torch.quantile(all_dices, 0.75) - torch.quantile(all_dices, 0.25)
 
-        print(f"\n--- Resultados Finales de Test ---")
-        print(f"Dice Promedio: {avg_dice:.4f}")
-        print(f"Desviación Estándar Dice: {std_dice:.4f}")
-        print(f"Mediana Dice: {med_dice:.4f}")
-        print(f"Rango Intercuartílico Dice: {iqr_dice:.4f}")
+        print(f"\n--- Final Test Results ---")
+        print(f"Mean Dice: {avg_dice:.4f}")
+        print(f"Standard Deviation Dice: {std_dice:.4f}")
+        print(f"Median Dice: {med_dice:.4f}")
+        print(f"Interquartile Range Dice: {iqr_dice:.4f}")
 
-        # Registramos las métricas finales
+        # Log final metrics
         self.log("test_dice_avg", avg_dice)
         self.log("test_dice_std", std_dice)
         self.log("test_dice_med", med_dice)
         self.log("test_dice_iqr", iqr_dice)
 
-        # Limpiamos la lista para futuros tests o validaciones
+        # Clear the list for future tests or validations
         self.test_step_outputs.clear()
 
     def configure_optimizers(self):
-        # Separamos lso parámetros en Clásicos y Cuánticos
-        # En nuestro caso no haremos distinción entre ellos,
-        # pero dejamos la configuración separada por si quiere
-        # realizar pruebas cambiando el lr, weight_decay...
+        # Separate parameters into Classical and Quantum
+        # In our case we will not make a distinction between them,
+        # but we keep the configuration separate in case you want
+        # to run experiments changing lr, weight_decay...
         bridge_bottleneck = self.model.quantum_bridge
         
         quantum_params = list(bridge_bottleneck.parameters())
         quantum_ids = set(id(p) for p in quantum_params)
         classical_params = [p for p in self.parameters() if id(p) not in quantum_ids]
 
-        # Definir el optimizador con grupos de parámetros
+        # Define the optimizer with parameter groups
         optimizer = SGD([
             {
                 "params": classical_params, 
@@ -850,8 +848,8 @@ class SegmentationModule_Cuantica(pl.LightningModule):
         nesterov=True
         )
 
-        # Definir la función del scheduler
-        # La fórmula es (1 - epoch / max_epochs) ** 0.9
+        # Define the scheduler function
+        # The formula is (1 - epoch / max_epochs) ** 0.9
         scheduler = PolynomialLR(
             optimizer,
             total_iters=self.max_epochs,
@@ -868,15 +866,15 @@ class SegmentationModule_Cuantica(pl.LightningModule):
 
 class PlotCallback_Cuantica(pl.Callback):
     """
-    Realizamos una gráfica acumulativa del coefieciente de Dice, 
-    la Pérdida (Loss) y la Gamma cuántica al final de cada época.
-    Las gráficas de una misma versión se sobrescriben
-    de forma que solo se mantiene la más reciente.
-    """
+        Produce a cumulative plot of the Dice coefficient,
+        Loss, and quantum gamma at the end of each epoch.
+        Plots for the same version are overwritten
+        so only the latest one is kept.
+        """
     def __init__(self):
         super().__init__()
         self.base_save_dir = 'graficas'
-        # Diccionarios para mantener el histórico completo
+        # Dictionaries to keep the full history
         self.history = {
             'train_loss': [],
             'val_loss': [],
@@ -888,13 +886,13 @@ class PlotCallback_Cuantica(pl.Callback):
         self.save_dir = None
 
     def on_train_start(self, trainer, pl_module):
-        # Accedemos a la ruta del logger (ej. lightning_logs/version_0)
+        # Access the logger path (ej. lightning_logs/version_0)
         if trainer.logger:
             version_dir = trainer.logger.version
             if isinstance(version_dir, int):
                 version_dir = f"version_{version_dir}"
             
-            # Construimos la ruta dinámica
+            # Build the dynamic path
             self.save_dir = os.path.join(self.base_save_dir, version_dir)
         else:
             self.save_dir = self.base_save_dir
@@ -903,7 +901,7 @@ class PlotCallback_Cuantica(pl.Callback):
             os.makedirs(self.save_dir)
 
     def on_train_epoch_end(self, trainer, pl_module):
-        # Recuperar métricas del trainer
+        # Retrieve metrics from the trainer
         metrics = trainer.callback_metrics
         
         t_loss = metrics.get('train_loss')
@@ -912,7 +910,7 @@ class PlotCallback_Cuantica(pl.Callback):
         v_dice = metrics.get('val_dice')
         g_cuantica = metrics.get('gamma_weight')
 
-        # Solo añadir si el valor existe en esta época
+        # Only add if the value exists in this epoch
         if t_loss is not None:
             self.history['train_loss'].append(t_loss.item())
         if v_loss is not None:
@@ -924,7 +922,7 @@ class PlotCallback_Cuantica(pl.Callback):
         if g_cuantica is not None:
             self.history['gamma_cuantica'].append(g_cuantica.item())
 
-        # Generar la gráfica acumulativa
+        # Generate the cumulative plot
         self._generate_loss_plot(trainer.current_epoch)
         self._generate_dice_plot(trainer.current_epoch)
         self._generate_quantum_gamma_plot(trainer.current_epoch)
@@ -938,7 +936,7 @@ class PlotCallback_Cuantica(pl.Callback):
             plt.plot(epochs_range, self.history['train_loss'], label='Train Loss')
         
         if self.history['val_loss']:
-            # Ajustamos el rango si val_loss tiene menos datos (ej. si no validas cada época)
+            # Adjust the range if val_loss has fewer data points (e.g. if not validating every epoch)
             val_range = range(len(self.history['val_loss']))
             plt.plot(val_range, self.history['val_loss'], label='Val Loss')
 
@@ -948,7 +946,7 @@ class PlotCallback_Cuantica(pl.Callback):
         plt.legend()
         plt.grid(True, alpha=0.7)
 
-        # Guardar la imagen
+        # Save the image
         plt.savefig(os.path.join(self.save_dir, f"loss_grafica.png"))
         plt.close()
 
@@ -961,7 +959,7 @@ class PlotCallback_Cuantica(pl.Callback):
             plt.plot(epochs_range, self.history['train_dice'], label='Train Dice')
         
         if self.history['val_dice']:
-            # Ajustamos el rango si val_loss tiene menos datos (ej. si no validas cada época)
+            # Adjust the range if val_loss has fewer data points (e.g. if not validating every epoch)
             val_range = range(len(self.history['val_dice']))
             plt.plot(val_range, self.history['val_dice'], label='Val Dice')
 
@@ -971,7 +969,7 @@ class PlotCallback_Cuantica(pl.Callback):
         plt.legend(loc='lower right')
         plt.grid(True, alpha=0.7)
 
-        # Guardar la imagen
+        # Save the image
         plt.savefig(os.path.join(self.save_dir, f"dice_grafica.png"))
         plt.close()
 
@@ -989,6 +987,6 @@ class PlotCallback_Cuantica(pl.Callback):
         plt.legend(loc='lower left')
         plt.grid(True, alpha=0.7)
 
-        # Guardar la imagen
+        # Save the image
         plt.savefig(os.path.join(self.save_dir, 'gamma_cuantica.png'))
         plt.close()
