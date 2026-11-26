@@ -27,24 +27,24 @@ from modelos import (
 
 def crear_aumento_offline(lista_rutas_entrada, cantidad, carpeta_salida, train_transformations=None):
     """
-    Crea una carpeta con el aumento de datos de los archivos
-    seleccionados para el aumento de datos offline.
-    Si la carpeta ya existe (de un fine-tuning anterior) la
-    elimina.
+    Creates a folder with data augmentation of the selected files
+    for offline data augmentation.
+    If the folder already exists (from a previous fine-tuning run),
+    it removes it.
     
-    Argumentos:
-        *lista_rutas_entrada (str): Conjunto de las listas de las cuales
-            se realizará el aumento de datos.
-        cantidad (int): Número de veces que se aplicará el aumento de datos,
-            p.ej. cantidad=2 indica que cada archivo será aumentado tres veces
-            distintas.
-        carpeta_salida (str): Nombre de la carpeta donde se guardará el
-            aumento de datos.
-        train_transformations (optional, torchio.Compose | None): Transformaciones
-            que se utilizarán en el aumento de datos. Si se indica None se utilizarán
-            las transformaciones por defecto.
+    Args:
+        *lista_rutas_entrada (str): Collection of lists from which
+            data augmentation will be performed.
+        cantidad (int): Number of times data augmentation will be applied,
+            e.g., cantidad=2 indicates each file will be augmented two
+            different times.
+        carpeta_salida (str): Name of the folder where the augmented data
+            will be saved.
+        train_transformations (optional, torchio.Compose | None): Transformations
+            to use for data augmentation. If None, default transformations
+            will be used.
     """
-    # Eliminamos la carpeta con el mismo nombre si ya existía
+    # Remove the folder with the same name if it already exists
     if os.path.exists(carpeta_salida):
         shutil.rmtree(carpeta_salida)
     os.mkdir(carpeta_salida)
@@ -61,9 +61,9 @@ def crear_aumento_offline(lista_rutas_entrada, cantidad, carpeta_salida, train_t
             tio.RandomAnisotropy(downsampling=(1.5, 2.0), image_interpolation='bspline', p=0.25, include=['escaner'])
         ])
     
-    # Repetimos la lista entera tantas veces como indique el parámetro cantidad
+    # Repeat the entire list as many times as indicated by the cantidad parameter
     for _ in range(cantidad):
-        # El sufijo servirá para diferenciar la iteración a la que pertenecen los datos
+        # The suffix distinguishes which iteration the data belongs to
         n_sufijo_subcarpeta = int(len(os.listdir(carpeta_salida))/len(lista_rutas_entrada))
         for rutas in lista_rutas_entrada:
             try:
@@ -72,8 +72,8 @@ def crear_aumento_offline(lista_rutas_entrada, cantidad, carpeta_salida, train_t
 
                 escaner_array = escaner_nib.get_fdata(dtype="float32")
                 mascara_array = mascara_nib.get_fdata(dtype="float32")
-                # La máscara del cerebro me servirá al final para que no hayan variaciones de intensidad en el fondo del escáner
-                mascara_cerebro_array = escaner_array != 0 # Obtengo las posiciones que no son el fondo del escáner
+                # The brain mask will be used at the end so there are no intensity variations in the scan background
+                mascara_cerebro_array = escaner_array != 0 # Get positions that are not the scan background
                 
                 escaner_tensor = torch.from_numpy(escaner_array).unsqueeze(0)
                 mascara_tensor = torch.from_numpy(mascara_array).unsqueeze(0)
@@ -95,7 +95,7 @@ def crear_aumento_offline(lista_rutas_entrada, cantidad, carpeta_salida, train_t
                     mascara_cerebro=mascara_cerebro_image
                 )
             except:
-                print('Error en la carga de datos del aumento de datos offline')
+                print('Error loading offline data augmentation data')
 
             subject = train_transformations(subject)
 
@@ -112,10 +112,10 @@ def crear_aumento_offline(lista_rutas_entrada, cantidad, carpeta_salida, train_t
             escaner_mod_nib = nib.Nifti1Image(escaner_mod_data_array, affine=escaner_mod_affine_matrix, header=escaner_header)
             mascara_mod_nib = nib.Nifti1Image(mascara_mod_data_array, affine=mascara_mod_affine_matrix, header=mascara_header)
 
-            # El prefijo sirve para no sobrescribir las carpetas si cantidad > 1
+            # The prefix avoids overwriting folders when cantidad > 1
             subcarpeta_salida = f'{rutas[0].split("/")[1]}_{n_sufijo_subcarpeta}'
             ruta_subcarpeta_salida = os.path.join(carpeta_salida, subcarpeta_salida)
-            assert not os.path.isdir(ruta_subcarpeta_salida), f'La subcarpeta {subcarpeta_salida} ya existe.'
+            assert not os.path.isdir(ruta_subcarpeta_salida), f'Subfolder {subcarpeta_salida} already exists.'
             os.mkdir(ruta_subcarpeta_salida)
 
             ruta_salida_escaner = os.path.join(ruta_subcarpeta_salida, rutas[0].split('/')[2])
@@ -123,7 +123,7 @@ def crear_aumento_offline(lista_rutas_entrada, cantidad, carpeta_salida, train_t
 
             nib.save(escaner_mod_nib, ruta_salida_escaner)
             nib.save(mascara_mod_nib, ruta_salida_mascara)
-    # Devolver las rutas ordenadas
+    # Return the sorted paths
     data_off_paths = []
     for folder in os.listdir(carpeta_salida):
         lista = []
@@ -136,19 +136,19 @@ def crear_aumento_offline(lista_rutas_entrada, cantidad, carpeta_salida, train_t
 
 class RandomCrop(tio.Transform):
     """
-    Función que parchea los escáneres
+    Function that patches the scans.
 
-    Argumentos:
-        patch_size (Tuple[int, int, int]): Tamaño del parche que se quiere extraer.
-        p_foreground (optional, float): Probabilidad de forzar la extracción de un
-            parche que contenga perc_values de los vóxeles de resección.
-        perc_values (optional, float): Fracción mínima de vóxeles de la máscara de
-            resección que deben de haber en el parche para que se acepte. Se activa
-            el p_foreground de los casos.
-        n_iter (optional, int): Número máximo de iteraciones en que se ejecutará la
-            obtención de un parche que contenga perc_values de los vóxeles de resección
-            al activarse p_foreground. En caso de que ninguna sobrepase los perc_values
-            vóxeles, se seleccionará la que más tenga.
+    Args:
+        patch_size (Tuple[int, int, int]): Size of the patch to extract.
+        p_foreground (optional, float): Probability of forcing the extraction of a
+            patch containing perc_values of the resection voxels.
+        perc_values (optional, float): Minimum fraction of voxels from the resection
+            mask that must be present in the patch for it to be accepted. Triggered in
+            p_foreground of cases.
+        n_iter (optional, int): Maximum number of iterations to run while trying to
+            obtain a patch containing perc_values of resection voxels when p_foreground
+            is triggered. If none exceed perc_values voxels, the one with the highest
+            count is selected.
     """
     def __init__(self, patch_size, p_foreground=0.33, perc_values=0.9, n_iter=5):
         super().__init__()
@@ -158,14 +158,14 @@ class RandomCrop(tio.Transform):
         self.n_iter = n_iter
 
     def apply_transform(self, subject):
-        total_pixel_value = torch.sum(subject.mascara.data.float())#.detach()
-        if torch.rand(1) < self.p_foreground:#.detach() < self.p_foreground:
+        total_pixel_value = torch.sum(subject.mascara.data.float())
+        if torch.rand(1) < self.p_foreground:
             first_flag = True
             for _ in range(self.n_iter):
                 sampler = tio.data.UniformSampler(self.patch_size)
                 patch_generator = sampler(subject)
                 interm_subject_patch = next(patch_generator)
-                mask_pixel_value = torch.sum(interm_subject_patch.mascara.data.float())#.detach()
+                mask_pixel_value = torch.sum(interm_subject_patch.mascara.data.float())
                 if mask_pixel_value >= total_pixel_value * self.perc_values:
                     subject_patch = interm_subject_patch
                     break
@@ -184,48 +184,48 @@ class RandomCrop(tio.Transform):
 
 class MyScanDataset(Dataset):
     """
-    Dataset que implementa "lazy loading".
-    En lugar de rutas, usa objetos Nifti1Image ya cargados.
+    Dataset implementing "lazy loading".
+    Instead of paths, uses already-loaded Nifti1Image objects.
     """
     def __init__(self, list_of_paths, transformations=None):
         self.paths = list_of_paths
         self.transformations = transformations
 
     def __len__(self):
-        # Devuelve el número total de escáneres referenciados
+        # Returns the total number of referenced scans
         return len(self.paths)
 
     def __getitem__(self, idx):
-        # Obtener el objeto Nifti1Image (no la ruta) y la etiqueta
+        # Gets the Nifti1Image object (not the path) and the label
         image_path = self.paths[idx]
 
         try:
-            # Extraer datos y metadatos de Nibabel
+            # Extract data and metadata from Nibabel
             escaner_nib = nib.load(image_path[0])
             mascara_nib = nib.load(image_path[1])
 
-            # .get_fdata() da un array numpy (D, H, W)
+            # .get_fdata() returns a numpy array (D, H, W)
             escaner_array = escaner_nib.get_fdata(dtype="float32")
             mascara_array = mascara_nib.get_fdata(dtype="float32")
-            # La máscara del cerebro me servirá al final para que no hayan variaciones de intensidad en el fondo del escáner
-            mascara_cerebro_array = escaner_array != 0 # Obtengo las posiciones que no son el fondo del escáner
+            # The brain mask will be used at the end so there are no intensity variations in the scan background
+            mascara_cerebro_array = escaner_array != 0 # Gets positions that are not the scan background
             
-            # Convertir a Tensor y añadir un canal (C=1)
-            # TorchIO espera (C, D, H, W)
+            # Convert to Tensor and add a channel (C=1)
+            # TorchIO expects (C, D, H, W)
             escaner_tensor = torch.from_numpy(escaner_array).unsqueeze(0)
             mascara_tensor = torch.from_numpy(mascara_array).unsqueeze(0)
             mascara_cerebro_tensor = torch.from_numpy(mascara_cerebro_array).unsqueeze(0)
             
-            # Obtener la matriz afín
+            # Get the affine matrix
             escaner_affine_matrix = escaner_nib.affine
             mascara_affine_matrix = mascara_nib.affine
             
-            # Creamos el objeto 'ScalarImage' de TorchIO
+            # Create the TorchIO 'ScalarImage' object
             escaner_image = tio.ScalarImage(tensor=escaner_tensor, affine=escaner_affine_matrix)
             mascara_image = tio.LabelMap(tensor=mascara_tensor, affine=mascara_affine_matrix)
             mascara_cerebro_image = tio.LabelMap(tensor=mascara_cerebro_tensor, affine=escaner_affine_matrix)
             
-            # Juntamos en el objeto Subject (para aplicar todas las transformaciones juntas)
+            # Combine into a Subject object (to apply all transformations together)
             subject = tio.Subject(
                 escaner=escaner_image,
                 mascara=mascara_image,
@@ -233,12 +233,12 @@ class MyScanDataset(Dataset):
             )
             
         except Exception as e:
-            print(f"ERROR: No se pudo procesar la imagen en el índice {idx}.")
-            print(f"Detalle: {e}")
-            # Si esto falla, el problema es más profundo (ej. datos corruptos)
-            return None # Devolvemos None para forzar el error
+            print(f"ERROR: Could not process the image at index {idx}.")
+            print(f"Details: {e}")
+            # If this fails, the issue is deeper (e.g., corrupted data)
+            return None # Return None to force the error
 
-        # Aplicar Data Augmentation
+        # Apply Data Augmentation
         if self.transformations:
             subject = self.transformations(subject)
 
@@ -255,17 +255,17 @@ class MyScanDataset(Dataset):
 class VideoDataModule(pl.LightningDataModule):
     def __init__(self, info_list, batch_size=4, num_workers=8):
         """
-        Define las transformaciones y parámetros principales.
+        Defines the main transformations and parameters.
         """
         super().__init__()
-        self.info_list = info_list # Lista de rutas
+        self.info_list = info_list # List of paths
         self.batch_size = batch_size
         self.num_workers = num_workers
 
         self.patch_size = (112, 131, 98)
         self.stratify = True
 
-        # Transformaciones de entrenamiento
+        # Training transformations
         self.train_transformations = tio.Compose([
             RandomCrop(patch_size=self.patch_size, p_foreground=0.33, perc_values=0.9, n_iter=5),
             tio.RandomAffine(scales=0, degrees=30, p=0.2),
@@ -279,28 +279,28 @@ class VideoDataModule(pl.LightningDataModule):
             tio.RandomAnisotropy(downsampling=(1.5, 2.0), image_interpolation='bspline', p=0.25, include=['escaner'])
         ])
 
-        # Transformaciones de validación
+        # Validation transformations
         self.eval_transformations = tio.Compose([
             RandomCrop(patch_size=self.patch_size, p_foreground=0.33, perc_values=0.9, n_iter=5)
         ])
 
-    def setup(self, stage=None): # Se ejecuta una única vez al ejecutar la función
+    def setup(self, stage=None): # Runs only once when the function is called
         """
-        Busca las referencias (paths) y crea los Datasets.
-        Esto se ejecuta una vez en cada 'fit' o 'test'.
+        Finds references (paths) and creates the Datasets.
+        This runs once per 'fit' or 'test'.
         """
 
         if stage == 'fit' or stage is None:
             train_paths, val_paths, test_paths = self.info_list
 
-            # Creamos el aumento de datos offline
+            # Create offline data augmentation
             train_off_paths = crear_aumento_offline(train_paths, 1, 'datos_aum_off_EPISURG_posop_entrenamiento')
             val_off_paths   = crear_aumento_offline(val_paths,   2, 'datos_aum_off_EPISURG_posop_validacion')
             
             train_paths = train_paths + train_off_paths
             val_paths   = val_paths   + val_off_paths
 
-            # Instanciar los datasets con las rutas y transformaciones
+            # Instantiate datasets with paths and transformations
             self.train_dataset = MyScanDataset(
                 list_of_paths=train_paths,
                 transformations=self.train_transformations,
@@ -318,35 +318,35 @@ class VideoDataModule(pl.LightningDataModule):
 
     def train_dataloader(self):
         """
-        Crea el DataLoader de entrenamiento.
+        Creates the training DataLoader.
         """
         return DataLoader(
             self.train_dataset, 
             batch_size=self.batch_size, 
-            shuffle=True,                 # Mezcla los datos en cada época
-            num_workers=self.num_workers, # Carga datos en paralelo
-            pin_memory=True               # Acelera transferencia a GPU
+            shuffle=True,                 # Shuffles data every epoch
+            num_workers=self.num_workers, # Loads data in parallel
+            pin_memory=True               # Speeds up transfer to GPU
         )
 
     def val_dataloader(self):
         """
-        Crea el DataLoader de validación.
+        Create the validation DataLoader.
         """
         return DataLoader(
             self.val_dataset, 
             batch_size=self.batch_size, 
-            shuffle=False, # No se mezcla en validación
+            shuffle=False,               # Do not shuffle during validation
             num_workers=self.num_workers,
             pin_memory=True
         )
     
     def test_dataloader(self):
         """
-        Crea el DataLoader de test.
+        Create the test DataLoader.
         """
         return DataLoader(
             self.test_dataset,
-            batch_size=1, # batch_size = 1 porque calculamos el test real de imágenes con distintos tamaños (si agrupamos da error)
+            batch_size=1, # batch_size = 1 because we evaluate the real test on images of different sizes (batching causes an error)
             shuffle=False,
             num_workers=self.num_workers,
             pin_memory=True
@@ -355,13 +355,13 @@ class VideoDataModule(pl.LightningDataModule):
 
 def mezclador_con_semilla(lista, semilla=False):
     """
-    Creamos un mezclador local con su propia semilla.
+    Create a local shuffler with its own seed.
     
-    Argumentos:
-        *lista: Conjunto de datos que se mezclarán.
-        semilla (optional, int | False): Si el dato proporcionado es un entero
-            indica la semilla de la función de mezclado para facilitar
-            las comparaciones, si es False no se utiliza semilla.
+    Args:
+        *lista: Dataset to be shuffled.
+        semilla (optional, int | False): If an integer is provided,
+            specifies the seed for the shuffle function to make
+            comparisons easier; if False, no seed is used.
     """
     if semilla is False:
         rng = random.Random()
@@ -373,15 +373,15 @@ def mezclador_con_semilla(lista, semilla=False):
 
 def obtener_conjuntos(data_root, n_conjuntos, semilla=False):
     """"
-    Estratifica los datos en n conjuntos distintos.
+    Stratify the data into n distinct sets.
 
-    Argumentos:
-        data_root (str): Carpeta base donde se encuentran los archivos
-             a estratificar, se espera que tenga unas características determinadas
-             que cumple el conjunto preprocesado de EPISURG.
-        n (int): Número de conjuntos en los que se estratificarán los datos.
-        semilla (optional, int | False): Si es entero semilla de la mezcla de los
-            datos tras la estratificación, si es False no se utiliza semilla.
+    Args:
+        data_root (str): Base folder containing the files to stratify,
+            expected to follow certain characteristics that satisfies
+            the preprocessed EPISURG dataset.
+        n (int): Number of sets into which the data will be stratified.
+        semilla (optional, int | False): If an integer, seed for shuffling
+            the data after stratification; if False, no seed is used.
     """
     def indicar_datos_tipo(sorted_file_paths):
         subject_ID = sorted_file_paths[0].split('/')[1].split('_')[0]
@@ -416,11 +416,11 @@ def obtener_conjuntos(data_root, n_conjuntos, semilla=False):
     for folder in os.listdir(data_root):
         folder_path = os.path.join(data_root, folder)
         files = os.listdir(folder_path)
-        assert len(files) >= 2, f'En la ruta {folder_path} faltan archivos:\n{files=}'
+        assert len(files) >= 2, f'In the path {folder_path} there are missing files:\n{files=}'
         file_paths = [os.path.join(folder_path, file) for file in files]
-        # Ordenamos los archivos: 1.Escáner, 2.Máscara
+        # Sort files: 1.Scan, 2.Mask
         sorted_file_paths = sorted(file_paths, key=lambda x: x.endswith('-t1mri-1.nii.gz'), reverse=True)
-        sorted_file_paths = indicar_datos_tipo(sorted_file_paths) # Estratificamos
+        sorted_file_paths = indicar_datos_tipo(sorted_file_paths) # Stratify
         info_list.append(sorted_file_paths)
     
     if semilla is False:
@@ -432,21 +432,21 @@ def obtener_conjuntos(data_root, n_conjuntos, semilla=False):
     conjuntos = n_estratificacion(info_list, clases, n_conjuntos)
     return conjuntos
 
-parser = argparse.ArgumentParser(description='Entrenamiento con el dataset BraTS.')
-parser.add_argument('--model_type', type=str, choices=['Clasico', 'Cuantica'], required=True,
-                    help='Especifica qué tipo de modelo se realiza el fine-tuning (Clasico o Cuantica)')
+parser = argparse.ArgumentParser(description='Training with the EPISURG dataset.')
+parser.add_argument('--model_type', type=str, choices=['Classic', 'Hybrid'], required=True,
+                    help='Specify which model type to fine-tune (Classic or Hybrid)')
 parser.add_argument('-v', '--version', type=int, required=True,
-                    help='Versión del modelo sobre el cual se realizará fine-tuning')
+                    help='Model version to fine-tune')
 parser.add_argument('-n', '--num_folds', default=6, type=int, required=False,
-                    help='Número conjuntos para la validación cruzada. Por defecto 6.')
+                    help='Number of sets for cross-validation. Default is 6.')
 parser.add_argument('-s', '--seed', default=False, type=int, required=False,
-                    help='Semilla para comparar modelos. Por defecto no se activa.')
+                    help='Seed for comparing models. Disabled by default.')
 parser.add_argument('-e', '--max_epochs', default=1000, type=int, required=False,
-                    help='Número de épocas del entrenamiento. Por defecto 1000.')
+                    help='Number of training epochs. Default is 1000.')
 parser.add_argument('-b', '--batch_size', default=8, type=int, required=False,
-                    help='Número de elementos por lote. Por defecto 8.')
+                    help='Number of items per batch. Default is 8.')
 parser.add_argument('-w', '--num_workers', default=20, type=int, required=False,
-                    help='Número de workers. Por defecto 20.')
+                    help='Number of workers. Default is 20.')
 args = parser.parse_args()
 
 conjuntos = obtener_conjuntos(data_root='datos_preprocesados_EPISURG', n_conjuntos=args.num_folds, semilla=args.seed)
@@ -469,16 +469,16 @@ for i in range(args.num_folds):
     info_list = train_paths, val_paths, test_paths
     test_files.append(test_paths)
 
-    if args.model_type == 'Clasico':
+    if args.model_type == 'Classic':
         model = NNUNet3D_Clasico(input_channels=1, num_classes=1)
         pl_model = SegmentationModule_Clasico(model, learning_rate=1e-3, max_epochs=args.max_epochs)
         plot_callback = PlotCallback_Clasico()
-    if args.model_type == 'Cuantica':
+    if args.model_type == 'Hybrid':
         model = NNUNet3D_Cuantica(input_channels=1, num_classes=1, number_quantum_layers=5)
         pl_model = SegmentationModule_Cuantica(model, learning_rate=1e-3, max_epochs=args.max_epochs)
         plot_callback = PlotCallback_Cuantica()
 
-    # Cargar el modelo y moverlo a GPU
+    # Load the model and move it to GPU
     version = args.version
     n_checkpoint_files = 0
     for root, folders, files in os.walk(os.path.join('lightning_logs', f'version_{version}')):
@@ -486,7 +486,7 @@ for i in range(args.num_folds):
             if file.endswith('.ckpt'):
                 checkpoint_path = os.path.join(root, file)
                 n_checkpoint_files += 1
-                assert n_checkpoint_files == 1, f'Hay más de un archivo de pesos en la carpeta {root}'
+                assert n_checkpoint_files == 1, f'There is more than one weights file in folder {root}'
     checkpoint = torch.load(checkpoint_path, map_location=torch.device('cpu'), weights_only=False)
     new_state_dict = {}
     for key, value in checkpoint['state_dict'].items():
@@ -510,14 +510,14 @@ for i in range(args.num_folds):
     )
 
     checkpoint_callback = pl.callbacks.ModelCheckpoint(
-        monitor="val_dice", # Métrica a monitorizar
+        monitor="val_dice", # Metric to monitor
         mode="max",
-        save_top_k=5, # Guardamos las 5 mejores épocas
-        filename=filename_base+"{epoch:02d}" # Con el nombre completo da problema para acceder a los checkpoints
+        save_top_k=5, # Save the top 5 epochs
+        filename=filename_base+"{epoch:02d}" # Using the full name causes issues when accessing checkpoints
     )
 
 
-    # 3. Entrenas
+    # 3. Train
     trainer = pl.Trainer(
         max_epochs=args.max_epochs,
         accelerator="auto",
@@ -527,24 +527,24 @@ for i in range(args.num_folds):
                 DeviceStatsMonitor()],
         logger=csv_logger,
 
-        # Optimizaciones
-        precision="16-mixed",       # Reduce memoria a la mitad (aprox)
-        accumulate_grad_batches=2,  # Simula Batch Size = 8 * 2 = 16
+        # Optimizations
+        precision="16-mixed",       # Halves memory usage (approx.)
+        accumulate_grad_batches=2,  # Simulates Batch Size: 2 * batch_size. Default 2 * 8 = 16
         
         # gradient clipping
-        gradient_clip_val=1.0,          # Valor máximo permitido.
-        gradient_clip_algorithm="norm", # "norm" recorta basándose en la norma global de los gradientes. "value" corta por valor absoluto.
+        gradient_clip_val=1.0,          # Maximum allowed value
+        gradient_clip_algorithm="norm", # "norm" clips based on the global norm of gradients; "value" clips by absolute value
 
         benchmark=True
     )
     trainer.fit(pl_model, data_module)
 
 
-    # Ejecutar las pruebas
-    print("--- Entrenamiento finalizado ---")
-    print("--- Calculando ensemble de los 5 mejores checkpoints... ---")
+    # Run tests
+    print("--- Training finished ---")
+    print("--- Computing ensemble of the top 5 checkpoints... ---")
 
-    # Leemos los archivos reales del disco
+    # Read the actual files from disk
     ckpt_dir = checkpoint_callback.dirpath
     rutas_checkpoints = [
         os.path.join(ckpt_dir, f) 
@@ -552,38 +552,38 @@ for i in range(args.num_folds):
         if f.endswith('.ckpt')
     ]
 
-    # Inicializar un nuevo state_dict vacío
+    # Initialize a new empty state_dict
     ensemble_state_dict = None
     num_checkpoints = len(rutas_checkpoints)
 
     for ruta in rutas_checkpoints:
-        # Cargar el checkpoint
+        # Load the checkpoint
         ckpt = torch.load(ruta, map_location=torch.device('cpu'), weights_only=False)
         ckpt_state_dict = ckpt['state_dict']
         
-        # Si es el primero, clonamos la estructura dividiendo por el número total
+        # If it is the first one, clone the structure dividing by the total number
         if ensemble_state_dict is None:
             ensemble_state_dict = {
                 k: v.clone().float() / num_checkpoints 
                 for k, v in ckpt_state_dict.items()
             }
         else:
-            # Sumar la fracción correspondiente de los pesos de los siguientes checkpoints
+            # Add the corresponding fraction of weights from subsequent checkpoints
             for k, v in ckpt_state_dict.items():
                 ensemble_state_dict[k] += v.float() / num_checkpoints
 
-    # Cargar los pesos promediados en el modelo Lightning
+    # Load the averaged weights into the Lightning model
     pl_model.load_state_dict(ensemble_state_dict)
 
-    print("--- Pesos promediados cargados. Ejecutando pruebas... ---")
-    # Realizar el test usando el modelo con los pesos del ensemble
-    # Omitimos ckpt_path="best" para forzar el uso de los pesos que acabamos de cargar en memoria
+    print("--- Averaged weights loaded. Running tests... ---")
+    # Run the test using the model with the ensemble weights
+    # Omit ckpt_path="best" to force using the weights just loaded into memory
     results = trainer.test(model=pl_model, datamodule=data_module)
 
-    print("Resultados de la prueba (Weight Averaging):")
+    print("Test results (Weight Averaging):")
     print(results)
 
-    # Guardamos los resultados
+    # Save the results
     metrics = pd.read_csv(os.path.join(trainer.logger.log_dir, 'metrics.csv'))
 
     test_dice_avg  = [test_dice_avg for test_dice_avg in metrics['test_dice_avg'] if not np.isnan(test_dice_avg)][-1]
@@ -594,12 +594,12 @@ for i in range(args.num_folds):
 
     version = trainer.logger.version
 
-    # Guardamos los datos del fine-tuning
+    # Save fine-tuning data
     os.makedirs(os.path.join('resultados', f'version_{version}'), exist_ok=True)
     ruta_resultados = os.path.join('resultados', f'version_{version}', 'resultados.csv')
     os.makedirs(os.path.dirname(ruta_resultados), exist_ok=True)
 
-    # Creamos el csv
+    # Create the CSV
     datos_dict = {
         'Model_Type': [args.model_type],
         'Execution': 'Fine-tuning',
@@ -626,7 +626,7 @@ for version in lista_versiones:
             total_test_dice.append(line.strip())
 total_test_dice = [float(num) for num in total_test_dice]
 
-# Guardamos el Boxplt de todos los datos
+# Save the boxplot of all data
 os.makedirs(os.path.join('graficas', f'version_{versiones}'), exist_ok=True)
 ruta_boxplot = os.path.join('graficas', f'version_{versiones}', 'test_Dice_boxplot.png')
 os.makedirs(os.path.dirname(ruta_boxplot), exist_ok=True)
@@ -634,12 +634,12 @@ os.makedirs(os.path.dirname(ruta_boxplot), exist_ok=True)
 plt.figure()
 plt.boxplot(total_test_dice, positions=[1])
 plt.title('All test Dice coefficients')
-plt.xticks([1], ['']) # Ocultar las etiquetas del eje X
+plt.xticks([1], ['']) # Hide X-axis labels
 plt.grid(True)
 plt.savefig(ruta_boxplot)
 plt.close()
 
-# Guardamos los datos globales del fine-tuning
+# Save global fine-tuning data
 avg_total_dice = np.mean(total_test_dice)
 std_total_dice = np.std(total_test_dice)
 med_total_dice = np.median(total_test_dice)
@@ -649,7 +649,7 @@ os.makedirs(os.path.join('resultados', f'version_{versiones}'), exist_ok=True)
 ruta_resultados = os.path.join('resultados', f'version_{versiones}', 'resultados_globales.csv')
 os.makedirs(os.path.dirname(ruta_resultados), exist_ok=True)
 
-# Creamos el csv
+# Create the CSV
 datos_dict = {
     'Model_Type': [args.model_type],
     'Execution': ['Fine_tuning'],
@@ -662,7 +662,7 @@ datos_dict = {
 df = pd.DataFrame(datos_dict)
 df.to_csv(ruta_resultados, index=False, encoding='utf-8')
 
-# Guardamos los coeficientes de Dice individuales
+# Save individual Dice coefficients
 os.makedirs(os.path.join('resultados_enteros', f'version_{versiones}'), exist_ok=True)
 ruta_resultados_enteros = os.path.join('resultados_enteros', f'version_{versiones}', f'fine-tuning_{args.model_type}_{versiones}.csv')
 os.makedirs(os.path.dirname(ruta_resultados_enteros), exist_ok=True)
@@ -678,7 +678,7 @@ for rutas_archivos_iteracion in test_files:
                 iteraciones_pertenece.append(iteracion_pertenece)
     iteracion_pertenece += 1
 
-# Creamos el csv
+# Create the CSV
 datos_dict = {
     'Archivo': rutas_test,
     'Coeficiente_de_Dice': total_test_dice,
