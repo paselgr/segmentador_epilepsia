@@ -7,13 +7,13 @@ from monai.inferers import SlidingWindowInferer
 import numpy as np
 import torch
 
-from modelos import (
+from models import (
     NNUNet3D_Classic,
     NNUNet3D_Hybrid,
     SegmentationModule_Classic,
     SegmentationModule_Hybrid,
 )
-from preprocesamiento import extraer_cerebro_ants
+from preprocessing import extraer_cerebro_ants
 
 
 def procesar_escaner(escaner):

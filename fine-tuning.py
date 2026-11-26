@@ -15,7 +15,7 @@ from lightning.pytorch.callbacks import DeviceStatsMonitor, EarlyStopping
 from lightning.pytorch.loggers import CSVLogger
 from torch.utils.data import DataLoader, Dataset
 
-from modelos import (
+from models import (
     NNUNet3D_Classic,
     NNUNet3D_Hybrid,
     PlotCallback_Classic,
